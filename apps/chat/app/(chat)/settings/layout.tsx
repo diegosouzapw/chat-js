@@ -1,19 +1,12 @@
-import { headers } from "next/headers";
-import { redirect } from "next/navigation";
 import { SettingsHeader } from "@/components/settings/settings-header";
 import { SettingsNav } from "@/components/settings/settings-nav";
-import { auth } from "@/lib/auth";
 
 export default async function SettingsLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const session = await auth.api.getSession({ headers: await headers() });
-
-  if (!session?.user) {
-    redirect("/login");
-  }
+  // No auth check — all users (including anonymous) can access settings
 
   return (
     <div className="mx-auto flex h-dvh max-h-dvh w-full max-w-4xl flex-1 flex-col px-2 py-2 md:px-4">

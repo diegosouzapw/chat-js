@@ -28,7 +28,8 @@ function isPublicPage(pathname: string): boolean {
     pathname.startsWith("/compare") ||
     pathname.startsWith("/share/") ||
     pathname.startsWith("/privacy") ||
-    pathname.startsWith("/terms")
+    pathname.startsWith("/terms") ||
+    pathname.startsWith("/settings")
   );
 }
 

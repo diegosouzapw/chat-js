@@ -113,19 +113,27 @@ function validateAuthentication(env: NodeJS.ProcessEnv): ValidationError[] {
     }
   }
 
-  const hasAuth = authKeys.some((provider) => {
-    if (!config.authentication[provider]) {
-      return false;
-    }
-    return isRequirementSatisfied(authEnvRequirements[provider], env);
-  });
+  // Only require auth if at least one provider is enabled in config
+  const hasEnabledProvider = authKeys.some(
+    (provider) => config.authentication[provider]
+  );
 
-  if (!hasAuth) {
-    errors.push({
-      feature: "authentication",
-      missing: ["At least one auth provider must be enabled and configured"],
+  if (hasEnabledProvider) {
+    const hasAuth = authKeys.some((provider) => {
+      if (!config.authentication[provider]) {
+        return false;
+      }
+      return isRequirementSatisfied(authEnvRequirements[provider], env);
     });
+
+    if (!hasAuth) {
+      errors.push({
+        feature: "authentication",
+        missing: ["At least one auth provider must be enabled and configured"],
+      });
+    }
   }
+  // If no providers are enabled → anonymous-only mode, no error
 
   return errors;
 }

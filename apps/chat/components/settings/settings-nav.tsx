@@ -1,6 +1,6 @@
 "use client";
 
-import { Cpu, Plug, Settings } from "lucide-react";
+import { BrainCircuit, Cpu, Plug, Settings } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useMemo } from "react";
@@ -28,6 +28,11 @@ export function SettingsNav({
               },
             ]
           : []),
+        {
+          href: "/settings/orchestration" as const,
+          label: "Orchestration",
+          icon: BrainCircuit,
+        },
       ] as const,
     []
   );

@@ -55,6 +55,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 import { LimitDisplay } from "./upgrade-cta/limit-display";
 import { LoginPrompt } from "./upgrade-cta/login-prompt";
+import { ModeSelector } from "./mode-selector";
 
 const PROJECT_ROUTE_REGEX = /^\/project\/([^/]+)$/;
 
@@ -876,6 +877,11 @@ function PureChatInputBottomControls({
           className="@[500px]:h-10 h-8 w-fit max-w-none shrink justify-start truncate @[500px]:px-3 px-2 @[500px]:text-sm text-xs"
           onModelChangeAction={onModelChange}
           selectedModelId={selectedModelId}
+        />
+        <ModeSelector
+          selectedMode="auto"
+          onModeChange={(mode) => { console.log("Mode changed:", mode); }}
+          className="@[500px]:h-10 h-8"
         />
         <ConnectorsDropdown />
         <ResponsiveTools

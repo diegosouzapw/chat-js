@@ -1,6 +1,7 @@
 "use client";
 
 import { Github } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import authClient from "@/lib/auth-client";
 import { config } from "@/lib/config";
@@ -39,6 +40,12 @@ function VercelIcon({ className }: { className?: string }) {
 }
 
 export function SocialAuthProviders() {
+  const router = useRouter();
+  const hasAnyProvider =
+    config.authentication.google ||
+    config.authentication.github ||
+    config.authentication.vercel;
+
   return (
     <div className="space-y-2">
       {config.authentication.google ? (
@@ -74,6 +81,21 @@ export function SocialAuthProviders() {
           Continue with Vercel
         </Button>
       ) : null}
+      {!hasAnyProvider && (
+        <div className="flex flex-col gap-3">
+          <p className="text-muted-foreground text-center text-sm">
+            No authentication providers configured.
+          </p>
+          <Button
+            className="w-full"
+            onClick={() => router.push("/")}
+            type="button"
+          >
+            Continue as Guest
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
+

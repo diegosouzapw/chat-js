@@ -60,7 +60,7 @@ export class OpenAICompatibleGateway
     return provider.imageModel(modelId);
   }
 
-  createVideoModel(_modelId: never): Experimental_VideoModelV3 | null {
+  createVideoModel(_modelId: string): Experimental_VideoModelV3 | null {
     return null;
   }
 
