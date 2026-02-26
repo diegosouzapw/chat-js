@@ -89,6 +89,10 @@ export const authEnvRequirements: Record<
     options: [["VERCEL_APP_CLIENT_ID", "VERCEL_APP_CLIENT_SECRET"]],
     description: "VERCEL_APP_CLIENT_ID, VERCEL_APP_CLIENT_SECRET",
   },
+  magicLink: {
+    options: [[]],
+    description: "No additional environment variables required",
+  },
 };
 
 export function isRequirementSatisfied(

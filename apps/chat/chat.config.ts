@@ -57,8 +57,9 @@ const config = {
   },
   authentication: {
     google: false,
-    github: false, // Requires AUTH_GITHUB_ID + AUTH_GITHUB_SECRET — enable when configured
+    github: true, // GitHub OAuth — set AUTH_GITHUB_ID + AUTH_GITHUB_SECRET in .env.local
     vercel: false,
+    magicLink: true, // Passwordless email login — logs link to console in dev
   },
   ai: {
     // ── OmniRoute Gateway ──────────────────────────────

@@ -9,7 +9,7 @@ export default async function SettingsLayout({
   // No auth check — all users (including anonymous) can access settings
 
   return (
-    <div className="mx-auto flex h-dvh max-h-dvh w-full max-w-4xl flex-1 flex-col px-2 py-2 md:px-4">
+    <div className="flex h-dvh max-h-dvh w-full flex-1 flex-col px-2 py-2 md:px-6">
       <SettingsHeader />
       {/* Mobile: horizontal tabs on top */}
       <div className="mb-4 md:hidden">

@@ -116,7 +116,7 @@ export async function getAppModelDefinition(
  * so we fall back to an empty set (which auto-enables all models).
  */
 const KNOWN_MODEL_IDS = new Set<string>(
-  generatedForGateway === config.ai.gateway
+  String(generatedForGateway) === String(config.ai.gateway)
     ? generatedModels.map((m) => m.id)
     : []
 );

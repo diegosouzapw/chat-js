@@ -1,6 +1,6 @@
 "use client";
 
-import { BrainCircuit, Cpu, Plug, Settings } from "lucide-react";
+import { BrainCircuit, Cpu, FileText, History, Plug, Server, Settings, ShieldCheck, Workflow } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useMemo } from "react";
@@ -18,6 +18,11 @@ export function SettingsNav({
     () =>
       [
         { href: "/settings" as const, label: "General", icon: Settings },
+        {
+          href: "/settings/provider" as const,
+          label: "Provider",
+          icon: Server,
+        },
         { href: "/settings/models" as const, label: "Models", icon: Cpu },
         ...(config.ai.tools.mcp.enabled
           ? [
@@ -33,6 +38,26 @@ export function SettingsNav({
           label: "Orchestration",
           icon: BrainCircuit,
         },
+        {
+          href: "/settings/flow" as const,
+          label: "Flow Editor",
+          icon: Workflow,
+        },
+        {
+          href: "/settings/prompts" as const,
+          label: "Prompts",
+          icon: FileText,
+        },
+        {
+          href: "/settings/sessions" as const,
+          label: "Sessions",
+          icon: History,
+        },
+        {
+          href: "/settings/admin" as const,
+          label: "Admin",
+          icon: ShieldCheck,
+        },
       ] as const,
     []
   );
@@ -41,7 +66,7 @@ export function SettingsNav({
     <nav
       className={cn(
         "flex gap-1 sm:overflow-auto sm:pb-2",
-        orientation === "vertical" ? "w-56 flex-col" : "flex-row"
+        orientation === "vertical" ? "w-48 flex-col" : "flex-row"
       )}
     >
       {navItems.map(({ href, label, icon: Icon }) => {
@@ -67,3 +92,4 @@ export function SettingsNav({
     </nav>
   );
 }
+

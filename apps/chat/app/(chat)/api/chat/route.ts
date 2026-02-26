@@ -64,7 +64,9 @@ import { getThreadUpToMessageId } from "./get-thread-up-to-message-id";
 let redisPublisher: ReturnType<typeof createClient> | null = null;
 let redisSubscriber: ReturnType<typeof createClient> | null = null;
 
-if (env.REDIS_URL) {
+const isBuildTime = process.env.NEXT_PHASE === "phase-production-build";
+
+if (env.REDIS_URL && !isBuildTime) {
   redisPublisher = createClient({ url: env.REDIS_URL });
   redisSubscriber = createClient({ url: env.REDIS_URL });
   await Promise.all([redisPublisher.connect(), redisSubscriber.connect()]);

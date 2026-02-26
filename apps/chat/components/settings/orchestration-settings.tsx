@@ -82,7 +82,7 @@ interface OmniPrompt {
 
 interface HealthStatus {
   status: string;
-  components?: Record<string, { status: string; latency_ms?: number }>;
+  components?: Record<string, string | { status: string; latency_ms?: number }>;
 }
 
 // ── Icons ─────────────────────────────────────────────
@@ -195,10 +195,10 @@ export function OrchestrationSettings() {
               ) : health ? (
                 <div className="flex flex-wrap gap-3">
                   <Badge
-                    variant={health.status === "ok" ? "default" : "destructive"}
+                    variant={["ok", "healthy"].includes(health.status) ? "default" : "destructive"}
                     className="gap-1"
                   >
-                    {health.status === "ok" ? (
+                    {["ok", "healthy"].includes(health.status) ? (
                       <CheckCircle2Icon className="size-3" />
                     ) : (
                       <XCircleIcon className="size-3" />
@@ -206,21 +206,26 @@ export function OrchestrationSettings() {
                     {health.status}
                   </Badge>
                   {health.components &&
-                    Object.entries(health.components).map(([name, comp]) => (
-                      <Badge key={name} variant="outline" className="gap-1 text-xs">
-                        {comp.status === "ok" ? (
-                          <CheckCircle2Icon className="size-3 text-green-500" />
-                        ) : (
-                          <XCircleIcon className="size-3 text-red-500" />
-                        )}
-                        {name}
-                        {comp.latency_ms && (
-                          <span className="text-muted-foreground">
-                            {comp.latency_ms}ms
-                          </span>
-                        )}
-                      </Badge>
-                    ))}
+                    Object.entries(health.components).map(([name, comp]) => {
+                      const compStatus = typeof comp === "string" ? comp : comp.status;
+                      const isOk = ["ok", "healthy"].includes(compStatus);
+                      const latency = typeof comp === "object" ? comp.latency_ms : undefined;
+                      return (
+                        <Badge key={name} variant="outline" className="gap-1 text-xs">
+                          {isOk ? (
+                            <CheckCircle2Icon className="size-3 text-green-500" />
+                          ) : (
+                            <XCircleIcon className="size-3 text-red-500" />
+                          )}
+                          {name}
+                          {latency && (
+                            <span className="text-muted-foreground">
+                              {latency}ms
+                            </span>
+                          )}
+                        </Badge>
+                      );
+                    })}
                 </div>
               ) : (
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">

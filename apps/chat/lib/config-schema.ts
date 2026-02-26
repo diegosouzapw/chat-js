@@ -299,11 +299,15 @@ export const authenticationConfigSchema = z
       .describe(
         "Vercel OAuth (requires VERCEL_APP_CLIENT_ID + VERCEL_APP_CLIENT_SECRET)"
       ),
+    magicLink: z
+      .boolean()
+      .describe("Magic Link passwordless email login"),
   })
   .default({
     google: false,
     github: true,
     vercel: false,
+    magicLink: true,
   });
 
 export const configSchema = z.object({

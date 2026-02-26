@@ -1,8 +1,10 @@
 "use client";
 
-import { Github } from "lucide-react";
+import { Github, MailIcon, Loader2Icon } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import authClient from "@/lib/auth-client";
 import { config } from "@/lib/config";
 
@@ -41,47 +43,152 @@ function VercelIcon({ className }: { className?: string }) {
 
 export function SocialAuthProviders() {
   const router = useRouter();
+  const [email, setEmail] = useState("");
+  const [magicLinkSent, setMagicLinkSent] = useState(false);
+  const [magicLinkLoading, setMagicLinkLoading] = useState(false);
+  const [magicLinkError, setMagicLinkError] = useState<string | null>(null);
+
   const hasAnyProvider =
     config.authentication.google ||
     config.authentication.github ||
     config.authentication.vercel;
 
+  const hasMagicLink = config.authentication.magicLink;
+
+  const handleMagicLink = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email.trim()) return;
+
+    setMagicLinkLoading(true);
+    setMagicLinkError(null);
+
+    try {
+      const { error } = await authClient.signIn.magicLink({
+        email: email.trim(),
+        callbackURL: "/",
+      });
+      if (error) {
+        setMagicLinkError(error.message || "Failed to send magic link");
+      } else {
+        setMagicLinkSent(true);
+      }
+    } catch {
+      setMagicLinkError("Failed to send magic link. Please try again.");
+    } finally {
+      setMagicLinkLoading(false);
+    }
+  };
+
   return (
-    <div className="space-y-2">
-      {config.authentication.google ? (
-        <Button
-          className="w-full"
-          onClick={() => authClient.signIn.social({ provider: "google" })}
-          type="button"
-          variant="outline"
-        >
-          <GoogleIcon className="mr-2 h-4 w-4" />
-          Continue with Google
-        </Button>
-      ) : null}
-      {config.authentication.github ? (
-        <Button
-          className="w-full"
-          onClick={() => authClient.signIn.social({ provider: "github" })}
-          type="button"
-          variant="outline"
-        >
-          <Github className="mr-2 h-4 w-4" />
-          Continue with GitHub
-        </Button>
-      ) : null}
-      {config.authentication.vercel ? (
-        <Button
-          className="w-full"
-          onClick={() => authClient.signIn.social({ provider: "vercel" })}
-          type="button"
-          variant="outline"
-        >
-          <VercelIcon className="mr-2 h-4 w-4" />
-          Continue with Vercel
-        </Button>
-      ) : null}
-      {!hasAnyProvider && (
+    <div className="space-y-4">
+      {/* Social Providers */}
+      <div className="space-y-2">
+        {config.authentication.google ? (
+          <Button
+            className="w-full"
+            onClick={() => authClient.signIn.social({ provider: "google" })}
+            type="button"
+            variant="outline"
+          >
+            <GoogleIcon className="mr-2 h-4 w-4" />
+            Continue with Google
+          </Button>
+        ) : null}
+        {config.authentication.github ? (
+          <Button
+            className="w-full"
+            onClick={() => authClient.signIn.social({ provider: "github" })}
+            type="button"
+            variant="outline"
+          >
+            <Github className="mr-2 h-4 w-4" />
+            Continue with GitHub
+          </Button>
+        ) : null}
+        {config.authentication.vercel ? (
+          <Button
+            className="w-full"
+            onClick={() => authClient.signIn.social({ provider: "vercel" })}
+            type="button"
+            variant="outline"
+          >
+            <VercelIcon className="mr-2 h-4 w-4" />
+            Continue with Vercel
+          </Button>
+        ) : null}
+      </div>
+
+      {/* Magic Link */}
+      {hasMagicLink && (
+        <>
+          {hasAnyProvider && (
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-background px-2 text-muted-foreground">
+                  or
+                </span>
+              </div>
+            </div>
+          )}
+
+          {magicLinkSent ? (
+            <div className="rounded-lg border border-green-200 bg-green-50 p-4 text-center dark:border-green-800 dark:bg-green-950">
+              <MailIcon className="mx-auto mb-2 h-8 w-8 text-green-600 dark:text-green-400" />
+              <p className="text-sm font-medium text-green-800 dark:text-green-200">
+                Check your email
+              </p>
+              <p className="mt-1 text-xs text-green-600 dark:text-green-400">
+                We sent a magic link to <strong>{email}</strong>
+              </p>
+              <Button
+                className="mt-3"
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setMagicLinkSent(false);
+                  setEmail("");
+                }}
+              >
+                Try a different email
+              </Button>
+            </div>
+          ) : (
+            <form onSubmit={handleMagicLink} className="space-y-2">
+              <Input
+                type="email"
+                placeholder="Email address"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                disabled={magicLinkLoading}
+              />
+              <Button
+                className="w-full"
+                type="submit"
+                disabled={magicLinkLoading || !email.trim()}
+              >
+                {magicLinkLoading ? (
+                  <Loader2Icon className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <MailIcon className="mr-2 h-4 w-4" />
+                )}
+                Continue with Magic Link
+              </Button>
+              {magicLinkError && (
+                <p className="text-center text-sm text-destructive">
+                  {magicLinkError}
+                </p>
+              )}
+            </form>
+          )}
+        </>
+      )}
+
+      {/* Guest fallback */}
+      {!hasAnyProvider && !hasMagicLink && (
         <div className="flex flex-col gap-3">
           <p className="text-muted-foreground text-center text-sm">
             No authentication providers configured.
@@ -98,4 +205,3 @@ export function SocialAuthProviders() {
     </div>
   );
 }
-
