@@ -137,9 +137,49 @@ export function translateEventToAnnotation(
         },
       };
 
+    case "verification_started":
+      return {
+        type: "orchestration",
+        data: {
+          step: "verification_started",
+          message: "🔍 Verification started...",
+        },
+      };
+
+    case "verification_completed":
+      return {
+        type: "orchestration",
+        data: {
+          step: "verification_completed",
+          message: "✅ Verification completed",
+        },
+      };
+
+    case "step_completed":
+      return {
+        type: "orchestration",
+        data: {
+          step: "step_completed",
+          step_type: data.step_type,
+          message: `✓ Step completed (${data.step_type || "unknown"})`,
+        },
+      };
+
     default:
+      console.warn(`[SSE] Unknown event type: ${eventType}`);
       return null;
   }
+}
+
+/**
+ * Escape HTML entities to prevent XSS in orchestration markdown.
+ */
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
 }
 
 /**
@@ -153,7 +193,7 @@ export function formatOrchestrationAsMarkdown(
 
   const lines = events
     .filter((e) => e.data.message)
-    .map((e) => `- ${e.data.message}`);
+    .map((e) => `- ${escapeHtml(String(e.data.message))}`);
 
   return `\n\n<details>\n<summary>🔍 Orchestration Steps (${lines.length})</summary>\n\n${lines.join("\n")}\n\n</details>\n`;
 }

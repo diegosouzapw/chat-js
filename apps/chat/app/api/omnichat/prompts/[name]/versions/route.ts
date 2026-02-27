@@ -1,6 +1,12 @@
-import { NextRequest, NextResponse } from "next/server";
+/**
+ * API Route: /api/omnichat/prompts/[name]/versions
+ * Lists versions and creates new prompt versions via backend.
+ * GET: /v1/prompts/{name}/versions
+ * POST: /v1/prompts (backend creates version via POST /v1/prompts with name in body)
+ */
 
-const BACKEND_URL = process.env.OMNICHAT_API_URL || "http://localhost:8000";
+import { NextRequest, NextResponse } from "next/server";
+import { backendFetch } from "@/lib/omnichat/backend-fetch";
 
 export async function GET(
   _request: NextRequest,
@@ -8,9 +14,7 @@ export async function GET(
 ) {
   const { name } = await params;
   try {
-    const res = await fetch(`${BACKEND_URL}/v1/prompts/${name}/versions`, {
-      cache: "no-store",
-    });
+    const res = await backendFetch(`/prompts/${name}/versions`);
     if (!res.ok) return NextResponse.json([], { status: res.status });
     const data = await res.json();
     return NextResponse.json(data);
@@ -29,10 +33,10 @@ export async function POST(
   const { name } = await params;
   try {
     const body = await request.json();
-    const res = await fetch(`${BACKEND_URL}/v1/prompts/${name}/versions`, {
+    // Backend expects POST /v1/prompts with { name, content, ... }
+    const res = await backendFetch("/prompts", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
+      body: JSON.stringify({ name, ...body }),
     });
     const data = await res.json();
     return NextResponse.json(data, { status: res.status });

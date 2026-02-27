@@ -270,7 +270,7 @@ export async function* streamRun(
       if (line.startsWith("event:")) {
         currentEvent = line.slice(6).trim();
       } else if (line.startsWith("data:")) {
-        currentData = line.slice(5).trim();
+        currentData += (currentData ? "\n" : "") + line.slice(5).trim();
       } else if (line === "" && currentData) {
         // Empty line means end of event
         try {

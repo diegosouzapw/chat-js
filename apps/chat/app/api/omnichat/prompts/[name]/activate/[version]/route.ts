@@ -1,6 +1,11 @@
-import { NextResponse } from "next/server";
+/**
+ * API Route: /api/omnichat/prompts/[name]/activate/[version]
+ * Activates a specific prompt version via backend.
+ * Backend endpoint: POST /v1/prompts/{name}/versions/{version}/activate
+ */
 
-const BACKEND_URL = process.env.OMNICHAT_API_URL || "http://localhost:8000";
+import { NextResponse } from "next/server";
+import { backendFetch } from "@/lib/omnichat/backend-fetch";
 
 export async function POST(
   _request: Request,
@@ -8,8 +13,9 @@ export async function POST(
 ) {
   const { name, version } = await params;
   try {
-    const res = await fetch(
-      `${BACKEND_URL}/v1/prompts/${name}/activate/${version}`,
+    // Backend path: POST /v1/prompts/{name}/versions/{version}/activate
+    const res = await backendFetch(
+      `/prompts/${name}/versions/${version}/activate`,
       { method: "POST" }
     );
     if (!res.ok)

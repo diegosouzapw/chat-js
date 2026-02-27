@@ -28,8 +28,7 @@ function isPublicPage(pathname: string): boolean {
     pathname.startsWith("/compare") ||
     pathname.startsWith("/share/") ||
     pathname.startsWith("/privacy") ||
-    pathname.startsWith("/terms") ||
-    pathname.startsWith("/settings")
+    pathname.startsWith("/terms")
   );
 }
 
@@ -56,6 +55,14 @@ export async function proxy(req: NextRequest) {
     return;
   }
 
+  // Require session for admin BFF routes
+  if (pathname.startsWith("/api/omnichat") && !isLoggedIn) {
+    return NextResponse.json(
+      { error: "Authentication required" },
+      { status: 401 }
+    );
+  }
+
   if (!isLoggedIn) {
     return NextResponse.redirect(new URL("/login", url));
   }
@@ -75,6 +82,6 @@ export const config = {
      * - compare
      * - docs (Mintlify documentation)
      */
-    "/((?!api|docs|_next/static|_next/image|favicon.ico|opengraph-image|manifest|models|compare|privacy|terms|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|json|webmanifest)$).*)",
+    "/((?!api/auth|api/trpc|api/chat|docs|_next/static|_next/image|favicon.ico|opengraph-image|manifest|models|compare|privacy|terms|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|json|webmanifest)$).*)",
   ],
 };
