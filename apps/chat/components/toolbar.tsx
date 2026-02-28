@@ -165,7 +165,8 @@ function ReadingLevelSelector({
     "Graduate",
   ];
 
-  const { selectedModelId } = useChatInput();
+  const { selectedModelId, selectedMode, selectedComputeLevel, selectedOutputLanguage } =
+    useChatInput();
 
   const y = useMotionValue(-40 * 2);
   const dragConstraints = 5 * 40 + 2;
@@ -225,6 +226,9 @@ function ReadingLevelSelector({
                   ],
                   metadata: {
                     selectedModel: selectedModelId,
+                    mode: selectedMode,
+                    computeLevel: selectedComputeLevel ?? undefined,
+                    outputLanguage: selectedOutputLanguage || undefined,
                     createdAt: new Date(),
                     parentMessageId: storeApi.getState().getLastMessageId(),
                     activeStreamId: null,

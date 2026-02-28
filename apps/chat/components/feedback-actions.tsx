@@ -24,6 +24,8 @@ export function FeedbackActions({
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const { data: session } = useSession();
+  const message = useMessageById<ChatMessage>(messageId);
+  const runId = message?.metadata?.runId;
 
   const isAuthenticated = !!session?.user;
 
@@ -37,6 +39,57 @@ export function FeedbackActions({
     })
   );
 
+  const runFeedbackMutation = useMutation({
+    mutationFn: async ({
+      runId,
+      rating,
+    }: {
+      runId: string;
+      rating: 1 | 5;
+    }) => {
+      const params = new URLSearchParams({ rating: String(rating) });
+      const response = await fetch(
+        `/api/omnichat/runs/${runId}/feedback?${params.toString()}`,
+        {
+          method: "POST",
+        }
+      );
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        const detail =
+          typeof payload?.error === "string"
+            ? payload.error
+            : `HTTP ${response.status}`;
+        throw new Error(detail);
+      }
+      return payload;
+    },
+  });
+
+  const submitVote = async ({
+    type,
+    rating,
+  }: {
+    type: "down" | "up";
+    rating: 1 | 5;
+  }) => {
+    await voteMessageMutation.mutateAsync({
+      chatId,
+      messageId,
+      type,
+    });
+
+    if (!runId) {
+      return;
+    }
+
+    try {
+      await runFeedbackMutation.mutateAsync({ runId, rating });
+    } catch {
+      toast.error("Vote saved, but failed to sync run feedback.");
+    }
+  };
+
   if (isReadOnly || !isAuthenticated) {
     return null;
   }
@@ -49,13 +102,11 @@ export function FeedbackActions({
         disabled={vote && !vote.isUpvoted}
         onClick={() => {
           toast.promise(
-            voteMessageMutation.mutateAsync({
-              chatId,
-              messageId,
-              type: "down" as const,
-            }),
+            submitVote({ type: "down", rating: 1 }),
             {
-              loading: "Downvoting Response...",
+              loading: runId
+                ? "Downvoting response and syncing run feedback..."
+                : "Downvoting Response...",
               success: "Downvoted Response!",
               error: "Failed to downvote response.",
             }
@@ -72,13 +123,11 @@ export function FeedbackActions({
         disabled={vote?.isUpvoted}
         onClick={() => {
           toast.promise(
-            voteMessageMutation.mutateAsync({
-              chatId,
-              messageId,
-              type: "up" as const,
-            }),
+            submitVote({ type: "up", rating: 5 }),
             {
-              loading: "Upvoting Response...",
+              loading: runId
+                ? "Upvoting response and syncing run feedback..."
+                : "Upvoting Response...",
               success: "Upvoted Response!",
               error: "Failed to upvote response.",
             }

@@ -20,7 +20,7 @@ export default async function ModelsSettingsPage() {
           <div>
             <h2 className="font-semibold text-lg">Models</h2>
             <p className="text-muted-foreground text-sm">
-              Configure your AI model preferences.
+              Configure user model preferences and the global admin model registry.
             </p>
           </div>
           <Button

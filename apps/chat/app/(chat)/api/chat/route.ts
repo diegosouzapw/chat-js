@@ -2,6 +2,7 @@ import {
   convertToModelMessages,
   createUIMessageStream,
   JsonToSseTransformStream,
+  UI_MESSAGE_STREAM_HEADERS,
 } from "ai";
 import { headers } from "next/headers";
 import type { NextRequest } from "next/server";
@@ -53,6 +54,13 @@ import type { McpConnector } from "@/lib/db/schema";
 import { env } from "@/lib/env";
 import { MAX_INPUT_TOKENS } from "@/lib/limits/tokens";
 import { createModuleLogger } from "@/lib/logger";
+import {
+  executeRun,
+  streamRun,
+  translateEventToAnnotation,
+  type OmniChatRunRequest,
+  type OmniChatSSEEvent,
+} from "@/lib/omnichat";
 import type { AnonymousSession } from "@/lib/types/anonymous";
 import { ANONYMOUS_LIMITS } from "@/lib/types/anonymous";
 import { generateUUID } from "@/lib/utils";
@@ -92,6 +100,293 @@ export function getStreamContext(): ResumableStreamContext | null {
   });
 
   return globalStreamContext;
+}
+
+const CHAT_MODE_FALLBACK = "auto";
+const OUTPUT_LANGUAGE_FALLBACK = "pt-BR";
+const ALLOWED_CHAT_MODES = new Set([
+  "auto",
+  "direct",
+  "council",
+  "council_peer_review",
+  "debate",
+  "self_refine",
+  "heavy",
+  "tree_of_thought",
+  "chain_of_agents",
+]);
+const OMNICHAT_MAIN_FLOW_ENABLED =
+  process.env.OMNICHAT_MAIN_FLOW_ENABLED !== "false";
+const OMNICHAT_LOCAL_PIPELINE_FALLBACK_ENABLED =
+  process.env.OMNICHAT_LOCAL_PIPELINE_FALLBACK !== "false";
+const OMNICHAT_MAIN_FLOW_STREAM =
+  process.env.OMNICHAT_MAIN_FLOW_STREAM !== "false";
+
+function resolveChatMode(rawMode: unknown): string {
+  if (typeof rawMode !== "string") {
+    return CHAT_MODE_FALLBACK;
+  }
+
+  const normalized = rawMode.trim();
+  if (!normalized) {
+    return CHAT_MODE_FALLBACK;
+  }
+
+  return ALLOWED_CHAT_MODES.has(normalized)
+    ? normalized
+    : CHAT_MODE_FALLBACK;
+}
+
+function resolveComputeLevel(rawLevel: unknown): 3 | 5 | 7 | undefined {
+  if (rawLevel === 3 || rawLevel === 5 || rawLevel === 7) {
+    return rawLevel;
+  }
+
+  if (typeof rawLevel === "string") {
+    const parsed = Number.parseInt(rawLevel, 10);
+    if (parsed === 3 || parsed === 5 || parsed === 7) {
+      return parsed;
+    }
+  }
+
+  return undefined;
+}
+
+function resolveOutputLanguage(rawLanguage: unknown): string {
+  if (typeof rawLanguage !== "string") {
+    return OUTPUT_LANGUAGE_FALLBACK;
+  }
+
+  const normalized = rawLanguage.trim();
+  return normalized.length > 0
+    ? normalized.slice(0, 16)
+    : OUTPUT_LANGUAGE_FALLBACK;
+}
+
+function extractUserTextQuery(message: ChatMessage): string {
+  const text = message.parts
+    .filter(
+      (part): part is Extract<ChatMessage["parts"][number], { type: "text" }> =>
+        part.type === "text"
+    )
+    .map((part) => part.text)
+    .join("\n")
+    .trim();
+  return text;
+}
+
+function getOmniEventData(event: OmniChatSSEEvent): Record<string, unknown> {
+  if (event.data && typeof event.data === "object") {
+    return event.data;
+  }
+  return event as unknown as Record<string, unknown>;
+}
+
+function toNonNegativeNumber(value: unknown): number {
+  if (typeof value === "number" && Number.isFinite(value) && value >= 0) {
+    return value;
+  }
+  if (typeof value === "string") {
+    const parsed = Number.parseFloat(value);
+    if (Number.isFinite(parsed) && parsed >= 0) {
+      return parsed;
+    }
+  }
+  return 0;
+}
+
+function toStringArray(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+  const result = value.filter((item): item is string => typeof item === "string");
+  return result.length > 0 ? result : undefined;
+}
+
+export async function executeOmniChatRequest({
+  chatId,
+  userMessage,
+  selectedModelId,
+  selectedMode,
+  selectedComputeLevel,
+  selectedOutputLanguage,
+  userId,
+  isAnonymous,
+  isNewChat,
+}: {
+  chatId: string;
+  userMessage: ChatMessage;
+  selectedModelId: AppModelId;
+  selectedMode: string;
+  selectedComputeLevel: 3 | 5 | 7 | undefined;
+  selectedOutputLanguage: string;
+  userId: string | null;
+  isAnonymous: boolean;
+  isNewChat: boolean;
+}): Promise<Response> {
+  const log = createModuleLogger("api:chat:omnichat-main-flow");
+  const query = extractUserTextQuery(userMessage);
+  if (!query) {
+    throw new Error("Cannot execute OmniChat run without text query");
+  }
+
+  const runRequest: OmniChatRunRequest = {
+    query,
+    mode: selectedMode,
+    compute_level: selectedComputeLevel,
+    output_language: selectedOutputLanguage,
+  };
+
+  const assistantMessageId = generateUUID();
+
+  const stream = createUIMessageStream<ChatMessage>({
+    execute: async ({ writer }) => {
+      let finalAnswer = "";
+      let runCostUsd = 0;
+      let runIdFromExecution: string | undefined;
+
+      if (isNewChat) {
+        writer.write({
+          id: generateUUID(),
+          type: "data-chatConfirmed",
+          data: { chatId },
+          transient: true,
+        });
+      }
+
+      if (OMNICHAT_MAIN_FLOW_STREAM) {
+        try {
+          for await (const event of streamRun(runRequest)) {
+            const annotation = translateEventToAnnotation(event);
+            if (annotation?.type === "orchestration") {
+              const annotationData = annotation.data as Record<string, unknown>;
+              if (typeof annotationData.run_id === "string") {
+                runIdFromExecution = annotationData.run_id;
+              } else if (typeof event.run_id === "string") {
+                runIdFromExecution = event.run_id;
+              }
+              writer.write({
+                id: generateUUID(),
+                type: "data-orchestration",
+                data: {
+                  ...annotationData,
+                  step:
+                    typeof annotationData.step === "string"
+                      ? annotationData.step
+                      : event.event,
+                  run_id:
+                    (annotationData.run_id as string | undefined) ?? event.run_id,
+                  event: event.event,
+                  timestamp: Date.now(),
+                },
+                transient: true,
+              });
+            }
+
+            const eventData = getOmniEventData(event);
+            if (event.event === "run_completed") {
+              finalAnswer = String(eventData.final_answer || "").trim();
+              runCostUsd = toNonNegativeNumber(eventData.cost_usd);
+              const eventRunId = eventData.run_id;
+              if (typeof eventRunId === "string" && eventRunId.trim()) {
+                runIdFromExecution = eventRunId;
+              } else if (
+                typeof event.run_id === "string" &&
+                event.run_id.trim()
+              ) {
+                runIdFromExecution = event.run_id;
+              }
+            }
+            if (event.event === "run_failed" || event.event === "error") {
+              const message =
+                String(eventData.error || eventData.message || "").trim() ||
+                "OmniChat run failed";
+              throw new Error(message);
+            }
+          }
+        } catch (error) {
+          log.warn(
+            {
+              err:
+                error instanceof Error
+                  ? { message: error.message, stack: error.stack }
+                  : error,
+            },
+            "OmniChat streaming run failed; retrying with sync run"
+          );
+        }
+      }
+
+      if (!finalAnswer) {
+        const runResponse = await executeRun(runRequest);
+        finalAnswer = String(runResponse.final_answer || "").trim();
+        runCostUsd = toNonNegativeNumber(runResponse.cost_usd);
+        if (typeof runResponse.run_id === "string" && runResponse.run_id.trim()) {
+          runIdFromExecution = runResponse.run_id;
+        }
+        writer.write({
+          id: generateUUID(),
+          type: "data-orchestration",
+          data: {
+            step: "run_completed",
+            message: "🏁 Run completed",
+            mode: runResponse.mode,
+            run_id: runResponse.run_id,
+            latency_ms: runResponse.latency_ms,
+            cost_usd: runResponse.cost_usd,
+            models_used: toStringArray(runResponse.models_used),
+            timestamp: Date.now(),
+            event: "run_completed",
+          },
+          transient: true,
+        });
+      }
+
+      const assistantMessage: ChatMessage = {
+        id: assistantMessageId,
+        role: "assistant",
+        parts: [{ type: "text", text: finalAnswer }],
+        metadata: {
+          createdAt: new Date(),
+          parentMessageId: userMessage.id,
+          selectedModel: selectedModelId,
+          runId: runIdFromExecution,
+          mode: selectedMode,
+          computeLevel: selectedComputeLevel,
+          outputLanguage: selectedOutputLanguage,
+          activeStreamId: null,
+          selectedTool: undefined,
+        },
+      };
+
+      if (!isAnonymous) {
+        await saveMessage({
+          id: assistantMessage.id,
+          chatId,
+          message: assistantMessage,
+        });
+      }
+
+      if (userId && !isAnonymous && runCostUsd > 0) {
+        await deductCredits(userId, runCostUsd);
+      }
+
+      writer.write({
+        id: generateUUID(),
+        type: "data-appendMessage",
+        data: JSON.stringify(assistantMessage),
+        transient: true,
+      });
+    },
+    generateId: () => assistantMessageId,
+  });
+
+  return new Response(
+    stream
+      .pipeThrough(new JsonToSseTransformStream())
+      .pipeThrough(new TextEncoderStream()),
+    { headers: UI_MESSAGE_STREAM_HEADERS }
+  );
 }
 
 type AnonymousSessionResult =
@@ -288,9 +583,15 @@ function determineAllowedTools({
 async function getSystemPrompt({
   isAnonymous,
   chatId,
+  selectedMode,
+  selectedComputeLevel,
+  outputLanguage,
 }: {
   isAnonymous: boolean;
   chatId: string;
+  selectedMode: string;
+  selectedComputeLevel: 3 | 5 | 7 | undefined;
+  outputLanguage: string;
 }): Promise<string> {
   let system = systemPrompt();
   if (!isAnonymous) {
@@ -302,6 +603,16 @@ async function getSystemPrompt({
       }
     }
   }
+
+  system = `${system}\n\nResponse language: ${outputLanguage}.`;
+
+  if (selectedMode !== CHAT_MODE_FALLBACK) {
+    system = `${system}\nOrchestration preference: ${selectedMode}.`;
+  }
+  if (selectedComputeLevel) {
+    system = `${system}\nCompute level preference: ${selectedComputeLevel}.`;
+  }
+
   return system;
 }
 
@@ -320,6 +631,9 @@ async function createChatStream({
   timeoutId,
   mcpConnectors,
   streamId,
+  selectedMode,
+  selectedComputeLevel,
+  selectedOutputLanguage,
   onChunk,
 }: {
   messageId: string;
@@ -336,10 +650,19 @@ async function createChatStream({
   timeoutId: NodeJS.Timeout;
   mcpConnectors: McpConnector[];
   streamId: string;
+  selectedMode: string;
+  selectedComputeLevel: 3 | 5 | 7 | undefined;
+  selectedOutputLanguage: string;
   onChunk?: () => void;
 }) {
   const log = createModuleLogger("api:chat:stream");
-  const system = await getSystemPrompt({ isAnonymous, chatId });
+  const system = await getSystemPrompt({
+    isAnonymous,
+    chatId,
+    selectedMode,
+    selectedComputeLevel,
+    outputLanguage: selectedOutputLanguage,
+  });
 
   // Create cost accumulator to track all LLM and API costs
   const costAccumulator = new CostAccumulator();
@@ -380,6 +703,9 @@ async function createChatStream({
         createdAt: new Date(),
         parentMessageId: userMessage.id,
         selectedModel: selectedModelId,
+        mode: selectedMode,
+        computeLevel: selectedComputeLevel,
+        outputLanguage: selectedOutputLanguage,
         activeStreamId: isAnonymous ? null : streamId,
       };
 
@@ -478,6 +804,9 @@ async function executeChatRequest({
   abortController,
   timeoutId,
   mcpConnectors,
+  selectedMode,
+  selectedComputeLevel,
+  selectedOutputLanguage,
 }: {
   chatId: string;
   userMessage: ChatMessage;
@@ -491,6 +820,9 @@ async function executeChatRequest({
   abortController: AbortController;
   timeoutId: NodeJS.Timeout;
   mcpConnectors: McpConnector[];
+  selectedMode: string;
+  selectedComputeLevel: 3 | 5 | 7 | undefined;
+  selectedOutputLanguage: string;
 }): Promise<Response> {
   const log = createModuleLogger("api:chat:execute");
   const messageId = generateUUID();
@@ -509,6 +841,9 @@ async function executeChatRequest({
           createdAt: new Date(),
           parentMessageId: userMessage.id,
           selectedModel: selectedModelId,
+          mode: selectedMode,
+          computeLevel: selectedComputeLevel,
+          outputLanguage: selectedOutputLanguage,
           selectedTool: undefined,
           activeStreamId: streamId,
         },
@@ -543,6 +878,9 @@ async function executeChatRequest({
     timeoutId,
     mcpConnectors,
     streamId,
+    selectedMode,
+    selectedComputeLevel,
+    selectedOutputLanguage,
     onChunk,
   });
 
@@ -789,6 +1127,22 @@ export async function POST(request: NextRequest) {
       log.warn("No selectedModel in user message metadata");
       return new ChatSDKError("bad_request:api").toResponse();
     }
+    const selectedMode = resolveChatMode(userMessage.metadata?.mode);
+    const selectedComputeLevel = resolveComputeLevel(
+      userMessage.metadata?.computeLevel
+    );
+    const selectedOutputLanguage = resolveOutputLanguage(
+      userMessage.metadata?.outputLanguage
+    );
+    const normalizedUserMessage: ChatMessage = {
+      ...userMessage,
+      metadata: {
+        ...userMessage.metadata,
+        mode: selectedMode,
+        computeLevel: selectedComputeLevel,
+        outputLanguage: selectedOutputLanguage,
+      },
+    };
 
     const sessionSetup = await validateAndSetupSession({
       request,
@@ -802,7 +1156,7 @@ export async function POST(request: NextRequest) {
     const { userId, isAnonymous, anonymousSession, modelDefinition } =
       sessionSetup;
 
-    const selectedTool = userMessage.metadata.selectedTool ?? null;
+    const selectedTool = normalizedUserMessage.metadata.selectedTool ?? null;
     let isNewChat = false;
 
     // Handle authenticated user validation and credit check
@@ -810,7 +1164,7 @@ export async function POST(request: NextRequest) {
       const result = await handleUserValidationAndCredits({
         chatId,
         userId,
-        userMessage,
+        userMessage: normalizedUserMessage,
         projectId,
       });
       if ("error" in result) {
@@ -825,12 +1179,58 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    if (!OMNICHAT_MAIN_FLOW_ENABLED) {
+      log.warn(
+        "OmniChat main flow disabled by env; using local pipeline only"
+      );
+    } else {
+      try {
+        return await executeOmniChatRequest({
+          chatId,
+          userMessage: normalizedUserMessage,
+          selectedModelId,
+          selectedMode,
+          selectedComputeLevel,
+          selectedOutputLanguage,
+          userId,
+          isAnonymous,
+          isNewChat,
+        });
+      } catch (error) {
+        if (!OMNICHAT_LOCAL_PIPELINE_FALLBACK_ENABLED) {
+          log.error(
+            {
+              err:
+                error instanceof Error
+                  ? { message: error.message, stack: error.stack }
+                  : error,
+            },
+            "OmniChat main flow failed and local fallback is disabled"
+          );
+          return new Response(
+            "OmniChat main flow failed and fallback is disabled",
+            { status: 502 }
+          );
+        }
+
+        log.warn(
+          {
+            err:
+              error instanceof Error
+                ? { message: error.message, stack: error.stack }
+                : error,
+          },
+          "OmniChat main flow failed, falling back to local pipeline"
+        );
+      }
+    }
+
     const explicitlyRequestedTools =
       determineExplicitlyRequestedTools(selectedTool);
 
     const [contextResult, mcpConnectors] = await Promise.all([
       prepareRequestContext({
-        userMessage,
+        userMessage: normalizedUserMessage,
         chatId,
         isAnonymous,
         anonymousPreviousMessages,
@@ -856,7 +1256,7 @@ export async function POST(request: NextRequest) {
 
     return await executeChatRequest({
       chatId,
-      userMessage,
+      userMessage: normalizedUserMessage,
       previousMessages,
       selectedModelId,
       explicitlyRequestedTools,
@@ -867,6 +1267,9 @@ export async function POST(request: NextRequest) {
       abortController,
       timeoutId,
       mcpConnectors,
+      selectedMode,
+      selectedComputeLevel,
+      selectedOutputLanguage,
     });
   } catch (error) {
     log.error(

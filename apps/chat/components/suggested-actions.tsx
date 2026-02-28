@@ -15,6 +15,7 @@ import { Separator } from "@/components/ui/separator";
 import type { AppModelId } from "@/lib/ai/app-models";
 import type { ChatMessage } from "@/lib/ai/types";
 import { cn } from "@/lib/utils";
+import { useChatInput } from "@/providers/chat-input-provider";
 
 interface SuggestedActionsProps {
   chatId: string;
@@ -28,6 +29,8 @@ function PureSuggestedActions({
   className,
 }: SuggestedActionsProps) {
   const { sendMessage } = useChatActions<ChatMessage>();
+  const { selectedMode, selectedComputeLevel, selectedOutputLanguage } =
+    useChatInput();
   const containerRef = useRef<HTMLDivElement>(null);
   const categories = useMemo(
     () =>
@@ -125,6 +128,9 @@ function PureSuggestedActions({
         parts: [{ type: "text", text }],
         metadata: {
           selectedModel: selectedModelId,
+          mode: selectedMode,
+          computeLevel: selectedComputeLevel ?? undefined,
+          outputLanguage: selectedOutputLanguage || undefined,
           createdAt: new Date(),
           parentMessageId: null,
           activeStreamId: null,

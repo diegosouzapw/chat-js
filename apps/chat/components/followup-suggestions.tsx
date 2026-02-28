@@ -21,7 +21,13 @@ function FollowUpSuggestions({
   className?: string;
 }) {
   const storeApi = useChatStoreApi();
-  const { selectedModelId, selectedTool } = useChatInput();
+  const {
+    selectedModelId,
+    selectedMode,
+    selectedComputeLevel,
+    selectedOutputLanguage,
+    selectedTool,
+  } = useChatInput();
 
   const handleClick = useCallback(
     (suggestion: string) => {
@@ -45,6 +51,9 @@ function FollowUpSuggestions({
           createdAt: new Date(),
           parentMessageId,
           selectedModel: selectedModelId,
+          mode: selectedMode,
+          computeLevel: selectedComputeLevel ?? undefined,
+          outputLanguage: selectedOutputLanguage || undefined,
           activeStreamId: null,
           selectedTool: (selectedTool as UiToolName | null) || undefined,
         },
@@ -52,7 +61,14 @@ function FollowUpSuggestions({
 
       sendMessage(message);
     },
-    [storeApi, selectedModelId, selectedTool]
+    [
+      storeApi,
+      selectedModelId,
+      selectedMode,
+      selectedComputeLevel,
+      selectedOutputLanguage,
+      selectedTool,
+    ]
   );
 
   if (!suggestions || suggestions.length === 0) {

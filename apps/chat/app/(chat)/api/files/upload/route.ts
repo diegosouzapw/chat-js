@@ -1,6 +1,6 @@
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
-import { z } from "zod";
+import * as z from "zod";
 import { auth } from "@/lib/auth";
 import { extractFilenameFromUrl, uploadFile } from "@/lib/blob";
 import { config } from "@/lib/config";

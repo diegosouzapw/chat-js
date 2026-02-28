@@ -44,10 +44,11 @@ const PureMessagesInternal = memo(
           />
         ))}
 
-        {status === "submitted" && messageIds.length > 0 && (
+        {(status === "submitted" || status === "streaming") &&
+          messageIds.length > 0 && (
           // messages[messages.length - 1].role === 'user' &&
           <ThinkingMessage />
-        )}
+          )}
 
         {status === "error" && <ResponseErrorMessage />}
       </>
