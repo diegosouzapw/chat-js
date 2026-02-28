@@ -20,8 +20,8 @@ import {
 } from "./settings-page";
 
 interface ProviderConfig {
-  base_url: string;
   api_key: string;
+  base_url: string;
   source: string;
 }
 
@@ -30,7 +30,7 @@ const API_BASE = "/api/omnichat";
 export function ProviderSettings() {
   const [config, setConfig] = useState<ProviderConfig | null>(null);
   const [baseUrl, setBaseUrl] = useState("");
-  const [apiKey, setApiKey] = useState("");
+  const [apiKeyInput, setApiKeyInput] = useState("");
   const [showKey, setShowKey] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{
@@ -46,7 +46,7 @@ export function ProviderSettings() {
         const data = await res.json();
         setConfig(data);
         setBaseUrl(data.base_url);
-        setApiKey(data.api_key);
+        setApiKeyInput("");
       }
     } catch {
       // Backend might not support this yet
@@ -66,11 +66,17 @@ export function ProviderSettings() {
       const res = await fetch(`${API_BASE}/provider-config`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ base_url: baseUrl, api_key: apiKey }),
+        body: JSON.stringify({
+          base_url: baseUrl,
+          ...(apiKeyInput.trim() ? { api_key: apiKeyInput.trim() } : {}),
+        }),
       });
-      if (!res.ok) throw new Error("Failed to save");
+      if (!res.ok) {
+        throw new Error("Failed to save");
+      }
       const data = await res.json();
       setConfig(data);
+      setApiKeyInput("");
       setMessage({
         text: "Provider config saved — will persist across restarts",
         type: "success",
@@ -92,11 +98,13 @@ export function ProviderSettings() {
       const res = await fetch(`${API_BASE}/provider-config/reset`, {
         method: "POST",
       });
-      if (!res.ok) throw new Error("Failed to reset");
+      if (!res.ok) {
+        throw new Error("Failed to reset");
+      }
       const data = await res.json();
       setConfig(data);
       setBaseUrl(data.base_url);
-      setApiKey(data.api_key);
+      setApiKeyInput("");
       setMessage({ text: "Reset to .env defaults", type: "success" });
     } catch (e) {
       setMessage({
@@ -109,7 +117,7 @@ export function ProviderSettings() {
   };
 
   const hasChanges =
-    config && (baseUrl !== config.base_url || apiKey !== config.api_key);
+    !!config && (baseUrl !== config.base_url || apiKeyInput.trim().length > 0);
 
   if (loading) {
     return (
@@ -124,8 +132,8 @@ export function ProviderSettings() {
   return (
     <SettingsPage>
       <SettingsPageHeader>
-        <h2 className="text-lg font-semibold">LLM Provider</h2>
-        <p className="text-sm text-muted-foreground">
+        <h2 className="font-semibold text-lg">LLM Provider</h2>
+        <p className="text-muted-foreground text-sm">
           Configure your OpenAI-compatible API endpoint. Database overrides take
           precedence over .env values.
         </p>
@@ -161,9 +169,9 @@ export function ProviderSettings() {
               <Label htmlFor="base-url">Base URL</Label>
               <Input
                 id="base-url"
+                onChange={(e) => setBaseUrl(e.target.value)}
                 placeholder="http://localhost:8080/v1"
                 value={baseUrl}
-                onChange={(e) => setBaseUrl(e.target.value)}
               />
             </div>
 
@@ -171,18 +179,22 @@ export function ProviderSettings() {
               <Label htmlFor="api-key">API Key</Label>
               <div className="flex gap-2">
                 <Input
-                  id="api-key"
-                  type={showKey ? "text" : "password"}
-                  placeholder="sk-..."
-                  value={apiKey}
-                  onChange={(e) => setApiKey(e.target.value)}
                   className="flex-1"
+                  id="api-key"
+                  onChange={(e) => setApiKeyInput(e.target.value)}
+                  placeholder={
+                    config?.api_key
+                      ? `Current key: ${config.api_key}`
+                      : "sk-..."
+                  }
+                  type={showKey ? "text" : "password"}
+                  value={apiKeyInput}
                 />
                 <Button
-                  variant="outline"
-                  size="icon"
                   onClick={() => setShowKey(!showKey)}
+                  size="icon"
                   title={showKey ? "Hide" : "Show"}
+                  variant="outline"
                 >
                   {showKey ? (
                     <EyeOff className="size-4" />
@@ -195,8 +207,8 @@ export function ProviderSettings() {
 
             <div className="flex items-center gap-3 border-t pt-4">
               <Button
-                onClick={handleSave}
                 disabled={saving || !hasChanges}
+                onClick={handleSave}
                 size="sm"
               >
                 {saving ? (
@@ -209,10 +221,10 @@ export function ProviderSettings() {
 
               {config?.source === "database" && (
                 <Button
-                  onClick={handleReset}
                   disabled={saving}
-                  variant="outline"
+                  onClick={handleReset}
                   size="sm"
+                  variant="outline"
                 >
                   <RotateCcw className="mr-2 size-4" />
                   Reset to .env

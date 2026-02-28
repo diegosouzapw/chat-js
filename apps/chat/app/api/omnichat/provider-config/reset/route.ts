@@ -1,7 +1,13 @@
 import { NextResponse } from "next/server";
 import { backendFetch } from "@/lib/omnichat/backend-fetch";
+import { requireAdminSession } from "@/lib/omnichat/route-auth";
 
-export async function POST() {
+export async function POST(request: Request) {
+  const authz = await requireAdminSession(request);
+  if (authz instanceof NextResponse) {
+    return authz;
+  }
+
   try {
     const res = await backendFetch("/app-settings/provider/reset", {
       method: "POST",

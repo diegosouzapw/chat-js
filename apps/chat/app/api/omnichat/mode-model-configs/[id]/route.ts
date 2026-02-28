@@ -6,21 +6,28 @@
 
 import { NextResponse } from "next/server";
 import { backendFetch } from "@/lib/omnichat/backend-fetch";
+import { requireAdminSession } from "@/lib/omnichat/route-auth";
 
 export async function DELETE(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const authz = await requireAdminSession(request);
+  if (authz instanceof NextResponse) {
+    return authz;
+  }
+
   const { id } = await params;
   try {
     const res = await backendFetch(`/mode-configs/${id}`, {
       method: "DELETE",
     });
-    if (!res.ok)
+    if (!res.ok) {
       return NextResponse.json(
         { error: "Delete failed" },
         { status: res.status }
       );
+    }
     return NextResponse.json({ ok: true });
   } catch (error) {
     return NextResponse.json(
@@ -34,6 +41,11 @@ export async function PUT(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const authz = await requireAdminSession(request);
+  if (authz instanceof NextResponse) {
+    return authz;
+  }
+
   const { id } = await params;
   try {
     const body = await request.json();

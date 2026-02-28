@@ -1,13 +1,7 @@
 "use client";
 
-import {
-  Clock,
-  DollarSign,
-  Loader2,
-  MessageSquare,
-  RefreshCw,
-  Zap,
-} from "lucide-react";
+import { Clock, Loader2, MessageSquare, RefreshCw, Trash2 } from "lucide-react";
+import type { ReactNode } from "react";
 import { useCallback, useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -25,218 +19,400 @@ import {
   SettingsPageScrollArea,
 } from "./settings-page";
 
-interface SessionRun {
-  run_id: string;
-  session_id: string;
-  mode: string;
-  final_answer: string;
-  cost_usd: number;
-  latency_ms: number;
-  models_used: string[];
-  created_at?: string;
+interface SessionListItem {
+  created_at: string;
+  id: string;
+  message_count: number;
+  title: string;
+  updated_at: string;
 }
 
-interface SessionInfo {
-  session_id: string;
-  runs: SessionRun[];
-  total_cost: number;
-  total_runs: number;
-  created_at?: string;
+interface SessionMessage {
+  content: string;
+  created_at: string;
+  id: string;
+  mode?: string | null;
+  role: string;
+}
+
+interface SessionDetail extends SessionListItem {
+  messages: SessionMessage[];
+}
+
+interface SessionListProps {
+  onSelect: (sessionId: string) => void;
+  selectedSessionId: string | null;
+  sessions: SessionListItem[];
+}
+
+interface SessionDetailPanelProps {
+  deleting: boolean;
+  loadingDetail: boolean;
+  onDelete: () => void;
+  selectedSession: SessionDetail | null;
+  selectedSessionId: string | null;
 }
 
 const API_BASE = "/api/omnichat";
 
-export function SessionsSettings() {
-  const [sessions, setSessions] = useState<SessionInfo[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [selectedSession, setSelectedSession] = useState<string | null>(null);
+function formatDate(dateText?: string): string {
+  if (!dateText) {
+    return "—";
+  }
 
-  const loadSessions = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await fetch(`${API_BASE}/sessions`);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
-      // Backend may return flat array of runs or grouped sessions
-      if (Array.isArray(data)) {
-        // Group runs by session_id
-        const grouped = new Map<string, SessionRun[]>();
-        for (const item of data) {
-          const sid = item.session_id || item.id || "unknown";
-          if (!grouped.has(sid)) grouped.set(sid, []);
-          grouped.get(sid)!.push(item);
+  const date = new Date(dateText);
+  if (Number.isNaN(date.getTime())) {
+    return "—";
+  }
+
+  return date.toLocaleString();
+}
+
+function resolveNextSelection(
+  items: SessionListItem[],
+  currentSelection: string | null,
+  keepSelection: boolean
+): string | null {
+  if (items.length === 0) {
+    return null;
+  }
+
+  if (!keepSelection) {
+    return items[0]?.id ?? null;
+  }
+
+  const stillExists = items.some((item) => item.id === currentSelection);
+  if (stillExists) {
+    return currentSelection;
+  }
+
+  return items[0]?.id ?? null;
+}
+
+function SessionsList({
+  onSelect,
+  selectedSessionId,
+  sessions,
+}: SessionListProps) {
+  return (
+    <div className="space-y-2">
+      {sessions.map((session) => (
+        <Card
+          className={`cursor-pointer transition-colors hover:bg-muted/50 ${
+            selectedSessionId === session.id ? "border-primary" : ""
+          }`}
+          key={session.id}
+          onClick={() => onSelect(session.id)}
+        >
+          <CardHeader className="p-3">
+            <CardTitle className="truncate text-sm">
+              {session.title || "Untitled session"}
+            </CardTitle>
+            <CardDescription className="truncate font-mono text-[11px]">
+              {session.id}
+            </CardDescription>
+            <div className="flex items-center justify-between gap-2">
+              <Badge className="text-xs" variant="secondary">
+                {session.message_count} messages
+              </Badge>
+              <span className="text-muted-foreground text-xs">
+                {formatDate(session.updated_at)}
+              </span>
+            </div>
+          </CardHeader>
+        </Card>
+      ))}
+    </div>
+  );
+}
+
+function SessionDetailPanel({
+  deleting,
+  loadingDetail,
+  onDelete,
+  selectedSession,
+  selectedSessionId,
+}: SessionDetailPanelProps) {
+  if (!selectedSessionId) {
+    return (
+      <Card>
+        <CardContent className="py-12 text-center text-muted-foreground text-sm">
+          Select a session to view messages
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (loadingDetail) {
+    return (
+      <Card>
+        <CardContent className="flex items-center justify-center py-12">
+          <Loader2 className="size-6 animate-spin text-muted-foreground" />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (!selectedSession) {
+    return null;
+  }
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <div className="flex items-start justify-between gap-3">
+          <div className="space-y-1">
+            <CardTitle className="text-sm">
+              {selectedSession.title || "Untitled session"}
+            </CardTitle>
+            <CardDescription className="font-mono text-xs">
+              {selectedSession.id}
+            </CardDescription>
+            <div className="flex items-center gap-3 text-muted-foreground text-xs">
+              <span className="flex items-center gap-1">
+                <Clock className="size-3" />
+                Created: {formatDate(selectedSession.created_at)}
+              </span>
+              <span>Updated: {formatDate(selectedSession.updated_at)}</span>
+            </div>
+          </div>
+          <Button
+            disabled={deleting}
+            onClick={onDelete}
+            size="sm"
+            variant="outline"
+          >
+            <Trash2 className="mr-2 size-4" />
+            Delete
+          </Button>
+        </div>
+        <CardDescription className="font-mono text-xs">
+          {selectedSession.message_count} messages
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        {selectedSession.messages.length === 0 ? (
+          <p className="py-8 text-center text-muted-foreground text-sm">
+            This session has no messages yet.
+          </p>
+        ) : (
+          <div className="space-y-3">
+            {selectedSession.messages.map((message) => (
+              <div className="rounded-md border p-3" key={message.id}>
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline">{message.role}</Badge>
+                    {message.mode && (
+                      <Badge variant="secondary">{message.mode}</Badge>
+                    )}
+                  </div>
+                  <span className="text-muted-foreground text-xs">
+                    {formatDate(message.created_at)}
+                  </span>
+                </div>
+                <p className="whitespace-pre-wrap text-muted-foreground text-sm">
+                  {message.content || "—"}
+                </p>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+export function SessionsSettings() {
+  const [deleting, setDeleting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [loadingDetail, setLoadingDetail] = useState(false);
+  const [loadingSessions, setLoadingSessions] = useState(true);
+  const [selectedSession, setSelectedSession] = useState<SessionDetail | null>(
+    null
+  );
+  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(
+    null
+  );
+  const [sessions, setSessions] = useState<SessionListItem[]>([]);
+
+  const loadSessions = useCallback(
+    async (keepSelection = true) => {
+      setLoadingSessions(true);
+      setError(null);
+
+      try {
+        const response = await fetch(`${API_BASE}/sessions`);
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
         }
-        const sessionList: SessionInfo[] = [...grouped.entries()].map(
-          ([sid, runs]) => ({
-            session_id: sid,
-            runs,
-            total_cost: runs.reduce((s, r) => s + (r.cost_usd || 0), 0),
-            total_runs: runs.length,
-            created_at: runs[0]?.created_at,
-          })
+
+        const data = await response.json();
+        const items = Array.isArray(data) ? (data as SessionListItem[]) : [];
+        const nextSelection = resolveNextSelection(
+          items,
+          selectedSessionId,
+          keepSelection
         );
-        setSessions(sessionList);
-      } else {
+
+        setSessions(items);
+        setSelectedSessionId(nextSelection);
+        if (!nextSelection) {
+          setSelectedSession(null);
+        }
+      } catch (requestError) {
+        setError(
+          requestError instanceof Error
+            ? requestError.message
+            : "Failed to load sessions"
+        );
+        setSelectedSession(null);
+        setSelectedSessionId(null);
         setSessions([]);
+      } finally {
+        setLoadingSessions(false);
       }
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to load sessions");
+    },
+    [selectedSessionId]
+  );
+
+  const loadSessionDetail = useCallback(async (sessionId: string) => {
+    setLoadingDetail(true);
+    setError(null);
+
+    try {
+      const response = await fetch(`${API_BASE}/sessions/${sessionId}`);
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      const data = (await response.json()) as SessionDetail;
+      setSelectedSession(data);
+    } catch (requestError) {
+      setError(
+        requestError instanceof Error
+          ? requestError.message
+          : "Failed to load session detail"
+      );
+      setSelectedSession(null);
     } finally {
-      setLoading(false);
+      setLoadingDetail(false);
     }
   }, []);
 
+  const handleDeleteSelected = useCallback(async () => {
+    if (!selectedSessionId) {
+      return;
+    }
+
+    setDeleting(true);
+    setError(null);
+
+    try {
+      const response = await fetch(
+        `${API_BASE}/sessions/${selectedSessionId}`,
+        {
+          method: "DELETE",
+        }
+      );
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      setSelectedSession(null);
+      await loadSessions(false);
+    } catch (requestError) {
+      setError(
+        requestError instanceof Error
+          ? requestError.message
+          : "Failed to delete session"
+      );
+    } finally {
+      setDeleting(false);
+    }
+  }, [loadSessions, selectedSessionId]);
+
   useEffect(() => {
-    loadSessions();
+    loadSessions(false).catch(() => undefined);
   }, [loadSessions]);
 
-  const selectedSessionData = sessions.find(
-    (s) => s.session_id === selectedSession
-  );
+  useEffect(() => {
+    if (!selectedSessionId) {
+      setSelectedSession(null);
+      return;
+    }
+
+    loadSessionDetail(selectedSessionId).catch(() => undefined);
+  }, [loadSessionDetail, selectedSessionId]);
+
+  let content: ReactNode;
+  if (loadingSessions) {
+    content = (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="size-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  } else if (error) {
+    content = (
+      <Card>
+        <CardContent className="py-6 text-center text-destructive text-sm">
+          ⚠️ {error}
+        </CardContent>
+      </Card>
+    );
+  } else if (sessions.length === 0) {
+    content = (
+      <Card>
+        <CardContent className="py-12 text-center">
+          <MessageSquare className="mx-auto mb-3 size-8 text-muted-foreground" />
+          <p className="text-muted-foreground text-sm">No sessions found.</p>
+        </CardContent>
+      </Card>
+    );
+  } else {
+    content = (
+      <SettingsPageScrollArea>
+        <div className="grid gap-4 px-1 md:grid-cols-[280px_1fr]">
+          <SessionsList
+            onSelect={setSelectedSessionId}
+            selectedSessionId={selectedSessionId}
+            sessions={sessions}
+          />
+          <div className="space-y-4">
+            <SessionDetailPanel
+              deleting={deleting}
+              loadingDetail={loadingDetail}
+              onDelete={handleDeleteSelected}
+              selectedSession={selectedSession}
+              selectedSessionId={selectedSessionId}
+            />
+          </div>
+        </div>
+      </SettingsPageScrollArea>
+    );
+  }
 
   return (
     <SettingsPage>
       <SettingsPageHeader>
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-lg font-semibold">Sessions</h2>
-            <p className="text-sm text-muted-foreground">
-              Browse orchestration session history and run details
+            <h2 className="font-semibold text-lg">Sessions</h2>
+            <p className="text-muted-foreground text-sm">
+              Browse session history and full message timeline from backend
             </p>
           </div>
-          <Button variant="outline" size="sm" onClick={loadSessions}>
+          <Button
+            onClick={() => loadSessions(true)}
+            size="sm"
+            variant="outline"
+          >
             <RefreshCw className="mr-2 size-4" />
             Reload
           </Button>
         </div>
       </SettingsPageHeader>
 
-      <SettingsPageContent>
-        {loading ? (
-          <div className="flex items-center justify-center py-12">
-            <Loader2 className="size-6 animate-spin text-muted-foreground" />
-          </div>
-        ) : error ? (
-          <Card>
-            <CardContent className="py-6 text-center text-sm text-destructive">
-              ⚠️ {error}
-            </CardContent>
-          </Card>
-        ) : sessions.length === 0 ? (
-          <Card>
-            <CardContent className="py-12 text-center">
-              <MessageSquare className="mx-auto mb-3 size-8 text-muted-foreground" />
-              <p className="text-sm text-muted-foreground">
-                No sessions found. Sessions are created when you run
-                orchestration queries through the backend.
-              </p>
-            </CardContent>
-          </Card>
-        ) : (
-          <SettingsPageScrollArea>
-            <div className="grid gap-4 px-1 md:grid-cols-[280px_1fr]">
-              {/* Session list */}
-              <div className="space-y-2">
-                {sessions.map((s) => (
-                  <Card
-                    key={s.session_id}
-                    className={`cursor-pointer transition-colors hover:bg-muted/50 ${
-                      selectedSession === s.session_id
-                        ? "border-primary"
-                        : ""
-                    }`}
-                    onClick={() => setSelectedSession(s.session_id)}
-                  >
-                    <CardHeader className="p-3">
-                      <CardTitle className="truncate font-mono text-xs">
-                        {s.session_id.slice(0, 12)}…
-                      </CardTitle>
-                      <div className="flex items-center gap-2">
-                        <Badge variant="secondary" className="text-xs">
-                          {s.total_runs} runs
-                        </Badge>
-                        {s.total_cost > 0 && (
-                          <span className="text-xs text-muted-foreground">
-                            ${s.total_cost.toFixed(4)}
-                          </span>
-                        )}
-                      </div>
-                    </CardHeader>
-                  </Card>
-                ))}
-              </div>
-
-              {/* Session detail */}
-              <div className="space-y-4">
-                {!selectedSession ? (
-                  <Card>
-                    <CardContent className="py-12 text-center text-sm text-muted-foreground">
-                      Select a session to view runs
-                    </CardContent>
-                  </Card>
-                ) : selectedSessionData ? (
-                  <Card>
-                    <CardHeader className="pb-3">
-                      <CardTitle className="text-sm">
-                        Session Runs ({selectedSessionData.total_runs})
-                      </CardTitle>
-                      <CardDescription className="font-mono text-xs">
-                        {selectedSessionData.session_id}
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-3">
-                        {selectedSessionData.runs.map((run, idx) => (
-                          <div
-                            key={run.run_id || idx}
-                            className="rounded-md border p-3"
-                          >
-                            <div className="mb-2 flex items-center justify-between">
-                              <Badge variant="outline">{run.mode}</Badge>
-                              <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                                <span className="flex items-center gap-1">
-                                  <Clock className="size-3" />
-                                  {run.latency_ms}ms
-                                </span>
-                                <span className="flex items-center gap-1">
-                                  <DollarSign className="size-3" />$
-                                  {(run.cost_usd || 0).toFixed(4)}
-                                </span>
-                                <span className="flex items-center gap-1">
-                                  <Zap className="size-3" />
-                                  {run.models_used?.length || 0} models
-                                </span>
-                              </div>
-                            </div>
-                            <p className="line-clamp-3 text-xs text-muted-foreground">
-                              {run.final_answer?.slice(0, 200) || "—"}
-                            </p>
-                            {run.models_used?.length > 0 && (
-                              <div className="mt-2 flex flex-wrap gap-1">
-                                {run.models_used.map((m) => (
-                                  <Badge
-                                    key={m}
-                                    variant="secondary"
-                                    className="text-[10px]"
-                                  >
-                                    {m.split("/").pop()}
-                                  </Badge>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    </CardContent>
-                  </Card>
-                ) : null}
-              </div>
-            </div>
-          </SettingsPageScrollArea>
-        )}
-      </SettingsPageContent>
+      <SettingsPageContent>{content}</SettingsPageContent>
     </SettingsPage>
   );
 }

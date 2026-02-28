@@ -74,7 +74,8 @@ interface OmniModeConfig {
 interface OmniPrompt {
   id: string;
   name: string;
-  template: string;
+  content: string;
+  template?: string;
   version: number;
   is_active: boolean;
   description?: string;
@@ -429,7 +430,7 @@ export function OrchestrationSettings() {
                         <TableCell className="text-sm text-muted-foreground">
                           {prompt.description || (
                             <span className="italic">
-                              {prompt.template.slice(0, 80)}...
+                              {(prompt.content || prompt.template || "").slice(0, 80)}...
                             </span>
                           )}
                         </TableCell>

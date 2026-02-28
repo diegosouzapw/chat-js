@@ -4,9 +4,15 @@
  */
 
 import { NextResponse } from "next/server";
-import { getPrompts, createPrompt, reloadPrompts } from "@/lib/omnichat";
+import { createPrompt, getPrompts, reloadPrompts } from "@/lib/omnichat";
+import { requireAdminSession } from "@/lib/omnichat/route-auth";
 
-export async function GET() {
+export async function GET(request: Request) {
+  const authz = await requireAdminSession(request);
+  if (authz instanceof NextResponse) {
+    return authz;
+  }
+
   try {
     const prompts = await getPrompts();
     return NextResponse.json(prompts);
@@ -19,6 +25,11 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  const authz = await requireAdminSession(request);
+  if (authz instanceof NextResponse) {
+    return authz;
+  }
+
   try {
     const url = new URL(request.url);
     const action = url.searchParams.get("action");

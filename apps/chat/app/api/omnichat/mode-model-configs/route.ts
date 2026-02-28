@@ -4,13 +4,21 @@
  * NOTE: Backend uses /v1/mode-configs (not /v1/mode-model-configs)
  */
 
-import { NextRequest, NextResponse } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
 import { backendFetch } from "@/lib/omnichat/backend-fetch";
+import { requireAdminSession } from "@/lib/omnichat/route-auth";
 
-export async function GET() {
+export async function GET(request: Request) {
+  const authz = await requireAdminSession(request);
+  if (authz instanceof NextResponse) {
+    return authz;
+  }
+
   try {
     const res = await backendFetch("/mode-configs");
-    if (!res.ok) return NextResponse.json([], { status: res.status });
+    if (!res.ok) {
+      return NextResponse.json([], { status: res.status });
+    }
     const data = await res.json();
     return NextResponse.json(data);
   } catch (error) {
@@ -22,6 +30,11 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
+  const authz = await requireAdminSession(request);
+  if (authz instanceof NextResponse) {
+    return authz;
+  }
+
   try {
     const body = await request.json();
     const res = await backendFetch("/mode-configs", {

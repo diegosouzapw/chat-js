@@ -6,11 +6,17 @@
 
 import { NextResponse } from "next/server";
 import { backendFetch } from "@/lib/omnichat/backend-fetch";
+import { requireAdminSession } from "@/lib/omnichat/route-auth";
 
 export async function POST(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ name: string; version: string }> }
 ) {
+  const authz = await requireAdminSession(request);
+  if (authz instanceof NextResponse) {
+    return authz;
+  }
+
   const { name, version } = await params;
   try {
     // Backend path: POST /v1/prompts/{name}/versions/{version}/activate
@@ -18,11 +24,12 @@ export async function POST(
       `/prompts/${name}/versions/${version}/activate`,
       { method: "POST" }
     );
-    if (!res.ok)
+    if (!res.ok) {
       return NextResponse.json(
         { error: "Activation failed" },
         { status: res.status }
       );
+    }
     const data = await res.json();
     return NextResponse.json(data);
   } catch (error) {

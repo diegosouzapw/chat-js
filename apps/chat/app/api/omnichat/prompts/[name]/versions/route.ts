@@ -5,17 +5,25 @@
  * POST: /v1/prompts (backend creates version via POST /v1/prompts with name in body)
  */
 
-import { NextRequest, NextResponse } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
 import { backendFetch } from "@/lib/omnichat/backend-fetch";
+import { requireAdminSession } from "@/lib/omnichat/route-auth";
 
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ name: string }> }
 ) {
+  const authz = await requireAdminSession(request);
+  if (authz instanceof NextResponse) {
+    return authz;
+  }
+
   const { name } = await params;
   try {
     const res = await backendFetch(`/prompts/${name}/versions`);
-    if (!res.ok) return NextResponse.json([], { status: res.status });
+    if (!res.ok) {
+      return NextResponse.json([], { status: res.status });
+    }
     const data = await res.json();
     return NextResponse.json(data);
   } catch (error) {
@@ -30,6 +38,11 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ name: string }> }
 ) {
+  const authz = await requireAdminSession(request);
+  if (authz instanceof NextResponse) {
+    return authz;
+  }
+
   const { name } = await params;
   try {
     const body = await request.json();

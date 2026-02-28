@@ -1,14 +1,21 @@
 import { NextResponse } from "next/server";
 import { backendFetch } from "@/lib/omnichat/backend-fetch";
+import { requireAdminSession } from "@/lib/omnichat/route-auth";
 
-export async function GET() {
+export async function GET(request: Request) {
+  const authz = await requireAdminSession(request);
+  if (authz instanceof NextResponse) {
+    return authz;
+  }
+
   try {
     const res = await backendFetch("/admin/stats");
-    if (!res.ok)
+    if (!res.ok) {
       return NextResponse.json(
         { error: "Stats unavailable" },
         { status: res.status }
       );
+    }
     const data = await res.json();
     // Map backend field names to what frontend components expect
     const mapped = {

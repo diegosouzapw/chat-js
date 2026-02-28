@@ -403,7 +403,8 @@ export async function reloadModeConfigs(): Promise<{ status: string }> {
 export interface OmniChatPrompt {
   id: string;
   name: string;
-  template: string;
+  content: string;
+  template?: string;
   version: number;
   is_active: boolean;
   description?: string;
@@ -415,11 +416,16 @@ export async function getPrompts(): Promise<OmniChatPrompt[]> {
 }
 
 export async function createPrompt(
-  data: { name: string; template: string; description?: string }
+  data: { name: string; content?: string; template?: string; description?: string }
 ): Promise<OmniChatPrompt> {
+  const content = data.content ?? data.template ?? "";
   return fetchApi<OmniChatPrompt>("/prompts", {
     method: "POST",
-    body: JSON.stringify(data),
+    body: JSON.stringify({
+      name: data.name,
+      content,
+      description: data.description,
+    }),
   });
 }
 

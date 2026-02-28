@@ -1,7 +1,13 @@
 import { NextResponse } from "next/server";
 import { backendFetch } from "@/lib/omnichat/backend-fetch";
+import { requireAdminSession } from "@/lib/omnichat/route-auth";
 
-export async function GET() {
+export async function GET(request: Request) {
+  const authz = await requireAdminSession(request);
+  if (authz instanceof NextResponse) {
+    return authz;
+  }
+
   try {
     const res = await backendFetch("/app-settings/provider/config");
     const data = await res.json();
@@ -15,6 +21,11 @@ export async function GET() {
 }
 
 export async function PUT(request: Request) {
+  const authz = await requireAdminSession(request);
+  if (authz instanceof NextResponse) {
+    return authz;
+  }
+
   try {
     const body = await request.json();
     const res = await backendFetch("/app-settings/provider/config", {

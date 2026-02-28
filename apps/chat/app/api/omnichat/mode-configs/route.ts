@@ -5,12 +5,18 @@
 
 import { NextResponse } from "next/server";
 import {
-  getModeConfigs,
   createModeConfig,
+  getModeConfigs,
   reloadModeConfigs,
 } from "@/lib/omnichat";
+import { requireAdminSession } from "@/lib/omnichat/route-auth";
 
 export async function GET(request: Request) {
+  const authz = await requireAdminSession(request);
+  if (authz instanceof NextResponse) {
+    return authz;
+  }
+
   const url = new URL(request.url);
   const mode = url.searchParams.get("mode") || undefined;
   const enabled = url.searchParams.has("enabled")
@@ -29,6 +35,11 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const authz = await requireAdminSession(request);
+  if (authz instanceof NextResponse) {
+    return authz;
+  }
+
   try {
     const url = new URL(request.url);
     const action = url.searchParams.get("action");
