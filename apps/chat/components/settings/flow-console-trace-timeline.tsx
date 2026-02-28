@@ -21,7 +21,7 @@ import {
 } from "./flow-console-utils";
 
 export type TimelineFilter = "all" | "errors" | "judge" | "worker";
-const DEFAULT_TRACE_TIMELINE_LIMIT = 160;
+const DEFAULT_TRACE_TIMELINE_LIMIT = 220;
 
 export function eventMatchesTimelineFilter(
   event: RunTraceEvent,

@@ -35,6 +35,7 @@
     "test:e2e": "export PLAYWRIGHT=True && bunx playwright test --workers=4",
     "test:unit": "vitest run",
     "test:types": "rm -rf .next/dev/types && next typegen . && tsc --noEmit",
+    "perf:flow-console": "bun scripts/flow-console-load-benchmark.ts",
     "ai:devtools": "bunx @ai-sdk/devtools",
     "fetch:models": "bun scripts/fetch-models.ts && bun format"
   },

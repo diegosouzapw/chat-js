@@ -125,15 +125,7 @@ export function buildRunIdHistoryPath({
 interface SpanGraphSelectable {
   id: string;
   parent_span_id: string | null;
-  started_at: string;
-}
-
-function toSortableTimestamp(value: string): number {
-  const timestamp = new Date(value).getTime();
-  if (Number.isFinite(timestamp)) {
-    return timestamp;
-  }
-  return 0;
+  started_at?: string;
 }
 
 export function selectGraphSpanSubset<T extends SpanGraphSelectable>({
@@ -160,23 +152,23 @@ export function selectGraphSpanSubset<T extends SpanGraphSelectable>({
   }
 
   const byId = new Map(spans.map((span) => [span.id, span]));
-  const newestFirst = [...spans].sort(
-    (left, right) =>
-      toSortableTimestamp(right.started_at) - toSortableTimestamp(left.started_at)
-  );
-
   const selectedIds = new Set<string>();
   const seedTarget = Math.max(1, Math.floor(normalizedLimit * 0.8));
-  for (const span of newestFirst) {
+  for (let index = spans.length - 1; index >= 0; index -= 1) {
     if (selectedIds.size >= seedTarget) {
       break;
+    }
+    const span = spans[index];
+    if (!span) {
+      continue;
     }
     selectedIds.add(span.id);
   }
 
   // Preserve parent context for recently selected spans when capacity allows.
-  for (const span of newestFirst) {
-    if (!selectedIds.has(span.id)) {
+  for (let index = spans.length - 1; index >= 0; index -= 1) {
+    const span = spans[index];
+    if (!span || !selectedIds.has(span.id)) {
       continue;
     }
 
@@ -195,9 +187,13 @@ export function selectGraphSpanSubset<T extends SpanGraphSelectable>({
   }
 
   if (selectedIds.size < normalizedLimit) {
-    for (const span of newestFirst) {
+    for (let index = spans.length - 1; index >= 0; index -= 1) {
       if (selectedIds.size >= normalizedLimit) {
         break;
+      }
+      const span = spans[index];
+      if (!span) {
+        continue;
       }
       selectedIds.add(span.id);
     }

@@ -178,7 +178,7 @@ describe("flow-console-utils", () => {
     ).toBeNull();
   });
 
-  it("selects a bounded graph subset while preserving recent parent context", () => {
+  it("selects a bounded graph subset preserving latest spans under tight limits", () => {
     const spans = [
       { id: "a", parent_span_id: null, started_at: "2026-02-28T10:00:00Z" },
       { id: "b", parent_span_id: "a", started_at: "2026-02-28T10:01:00Z" },
@@ -194,8 +194,8 @@ describe("flow-console-utils", () => {
 
     expect(subset.truncated).toBe(true);
     expect(subset.hiddenCount).toBe(2);
-    expect(subset.spans.map((span) => span.id)).toContain("c");
-    expect(subset.spans.map((span) => span.id)).toContain("b");
+    expect(subset.spans).toHaveLength(3);
+    expect(subset.spans.map((span) => span.id)).toEqual(["c", "d", "e"]);
   });
 
   it("builds spans CSV with header and rows", () => {
