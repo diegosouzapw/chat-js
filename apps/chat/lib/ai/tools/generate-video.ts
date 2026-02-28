@@ -1,5 +1,5 @@
 import { experimental_generateVideo as generateVideo, tool } from "ai";
-import { z } from "zod";
+import * as z from "zod";
 import { type AppModelId, getAppModelDefinition } from "@/lib/ai/app-models";
 import { getVideoModel } from "@/lib/ai/providers";
 import { uploadFile } from "@/lib/blob";

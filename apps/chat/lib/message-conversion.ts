@@ -3,6 +3,46 @@ import type { Chat, DBMessage } from "@/lib/db/schema";
 import type { UIChat } from "@/lib/types/ui-chat";
 import type { ChatMessage, UiToolName } from "./ai/types";
 
+type MessageAnnotation = {
+  type: string;
+  run_id?: string;
+};
+
+const OMNICHAT_RUN_ANNOTATION_TYPE = "omnichat_run";
+
+function toAnnotations(metadata: ChatMessage["metadata"]): MessageAnnotation[] {
+  const runId = metadata.runId?.trim();
+  if (!runId) {
+    return [];
+  }
+  return [{ type: OMNICHAT_RUN_ANNOTATION_TYPE, run_id: runId }];
+}
+
+export function extractRunIdFromAnnotations(
+  annotations: unknown
+): string | undefined {
+  if (!Array.isArray(annotations)) {
+    return undefined;
+  }
+
+  const match = annotations.find((item) => {
+    if (!item || typeof item !== "object") {
+      return false;
+    }
+    const value = item as MessageAnnotation;
+    return value.type === OMNICHAT_RUN_ANNOTATION_TYPE;
+  });
+
+  if (!match || typeof match !== "object") {
+    return undefined;
+  }
+
+  const runId = (match as MessageAnnotation).run_id;
+  return typeof runId === "string" && runId.trim().length > 0
+    ? runId
+    : undefined;
+}
+
 // Helper functions for type conversion
 export function dbChatToUIChat(chat: Chat): UIChat {
   return {
@@ -30,6 +70,7 @@ function _dbMessageToChatMessage(message: DBMessage): ChatMessage {
       activeStreamId: message.activeStreamId,
       parentMessageId: message.parentMessageId,
       selectedModel: (message.selectedModel as ModelId) || ("" as ModelId),
+      runId: extractRunIdFromAnnotations(message.annotations),
       selectedTool: (message.selectedTool as UiToolName | null) || undefined,
       usage: message.lastContext as ChatMessage["metadata"]["usage"],
     },
@@ -62,7 +103,7 @@ export function chatMessageToDbMessage(
     attachments: [],
     lastContext: message.metadata?.usage || null,
     createdAt,
-    annotations: [],
+    annotations: toAnnotations(message.metadata),
     parentMessageId,
     selectedModel,
     selectedTool: message.metadata?.selectedTool || null,

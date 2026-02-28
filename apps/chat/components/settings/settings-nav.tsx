@@ -1,6 +1,18 @@
 "use client";
 
-import { BrainCircuit, Cpu, FileText, History, Plug, Server, Settings, ShieldCheck, Workflow } from "lucide-react";
+import {
+  Activity,
+  BrainCircuit,
+  Cpu,
+  FileText,
+  History,
+  ListOrdered,
+  Plug,
+  Server,
+  Settings,
+  ShieldCheck,
+  Workflow,
+} from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useMemo } from "react";
@@ -42,6 +54,16 @@ export function SettingsNav({
           href: "/settings/flow" as const,
           label: "Flow Editor",
           icon: Workflow,
+        },
+        {
+          href: "/settings/runs" as const,
+          label: "Runs",
+          icon: ListOrdered,
+        },
+        {
+          href: "/settings/flow-console" as const,
+          label: "Flow Console",
+          icon: Activity,
         },
         {
           href: "/settings/prompts" as const,
@@ -92,4 +114,3 @@ export function SettingsNav({
     </nav>
   );
 }
-

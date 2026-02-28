@@ -4,7 +4,7 @@ import type {
   UIMessage,
   UIMessageStreamWriter,
 } from "ai";
-import { z } from "zod";
+import * as z from "zod";
 import type { codeExecution } from "@/lib/ai/tools/code-execution";
 import type { deepResearch } from "@/lib/ai/tools/deep-research/deep-research";
 import type { generateImageTool as generateImageToolFactory } from "@/lib/ai/tools/generate-image";
@@ -63,6 +63,10 @@ const messageMetadataSchema = z.object({
   createdAt: z.date(),
   parentMessageId: z.string().nullable(),
   selectedModel: z.custom<AppModelId>((val) => typeof val === "string"),
+  runId: z.string().optional(),
+  mode: z.string().optional(),
+  computeLevel: z.union([z.literal(3), z.literal(5), z.literal(7)]).optional(),
+  outputLanguage: z.string().optional(),
   activeStreamId: z.string().nullable(),
   selectedTool: frontendToolsSchema.optional(),
   usage: z.custom<LanguageModelUsage | undefined>((_val) => true).optional(),
@@ -123,12 +127,28 @@ interface FollowupSuggestions {
   suggestions: string[];
 }
 
+export interface OrchestrationUpdate {
+  step: string;
+  event?: string;
+  message?: string;
+  mode?: string;
+  model?: string;
+  run_id?: string;
+  worker_index?: number;
+  latency_ms?: number;
+  cost_usd?: number;
+  models_used?: string[];
+  error?: string;
+  timestamp?: number;
+}
+
 // biome-ignore lint/style/useConsistentTypeDefinitions: <explanation>
 export type CustomUIDataTypes = {
   appendMessage: string;
   chatConfirmed: {
     chatId: string;
   };
+  orchestration: OrchestrationUpdate;
   followupSuggestions: FollowupSuggestions;
   researchUpdate: ResearchUpdate;
 };

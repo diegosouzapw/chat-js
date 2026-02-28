@@ -1,4 +1,4 @@
-import { z } from "zod";
+import * as z from "zod";
 
 // Known tags for IDE hints (accepts any string for forward compatibility)
 type KnownTag =

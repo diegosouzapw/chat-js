@@ -129,7 +129,7 @@ function ModeFlowConfigInner({
 
   const loadConfigs = useCallback(async () => {
     try {
-      const res = await fetch(`${API_BASE}/mode-model-configs`);
+      const res = await fetch(`${API_BASE}/mode-configs`);
       if (!res.ok) return;
       const all: ModeModelConfig[] = await res.json();
       setModeConfigs(all.filter((c) => c.mode === mode));
@@ -152,7 +152,7 @@ function ModeFlowConfigInner({
       setSaveMsg(null);
       try {
         if (!modelId && existingConfigId) {
-          await fetch(`${API_BASE}/mode-model-configs/${existingConfigId}`, {
+          await fetch(`${API_BASE}/mode-configs/${existingConfigId}`, {
             method: "DELETE",
           });
         } else if (modelId) {
@@ -160,12 +160,12 @@ function ModeFlowConfigInner({
           if (!tNode) return;
 
           if (existingConfigId) {
-            await fetch(`${API_BASE}/mode-model-configs/${existingConfigId}`, {
+            await fetch(`${API_BASE}/mode-configs/${existingConfigId}`, {
               method: "DELETE",
             });
           }
 
-          await fetch(`${API_BASE}/mode-model-configs`, {
+          await fetch(`${API_BASE}/mode-configs`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
