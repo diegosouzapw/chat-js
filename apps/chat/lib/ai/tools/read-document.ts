@@ -1,5 +1,5 @@
 import { tool } from "ai";
-import { z } from "zod";
+import * as z from "zod";
 import type { ToolSession } from "@/lib/ai/tools/types";
 import { getDocumentById } from "@/lib/db/queries";
 import type { StreamWriter } from "../types";

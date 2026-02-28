@@ -22,6 +22,70 @@ interface ValidationError {
   missing: string[];
 }
 
+function looksLikePlaceholder(value: string | undefined): boolean {
+  if (!value) {
+    return true;
+  }
+  const normalized = value.trim().toLowerCase();
+  if (!normalized) {
+    return true;
+  }
+  return (
+    normalized.startsWith("change-me") ||
+    normalized.startsWith("your-") ||
+    normalized === "replace-me" ||
+    normalized === "set-me" ||
+    normalized === "placeholder"
+  );
+}
+
+function validateProductionSecrets(env: NodeJS.ProcessEnv): ValidationError[] {
+  const isHardenedEnv =
+    env.NODE_ENV === "production" || env.VERCEL_ENV === "production";
+  if (!isHardenedEnv) {
+    return [];
+  }
+
+  const errors: ValidationError[] = [];
+
+  if (looksLikePlaceholder(env.AUTH_SECRET)) {
+    errors.push({
+      feature: "AUTH_SECRET",
+      missing: ["AUTH_SECRET must be non-placeholder in production"],
+    });
+  }
+
+  if ((env.DATABASE_URL || "").toLowerCase().includes("change-me")) {
+    errors.push({
+      feature: "DATABASE_URL",
+      missing: ["DATABASE_URL cannot contain placeholder credentials in production"],
+    });
+  }
+
+  const optionalSecrets = [
+    "AI_GATEWAY_API_KEY",
+    "OPENROUTER_API_KEY",
+    "OPENAI_COMPATIBLE_API_KEY",
+    "OMNICHAT_API_KEY",
+    "AUTH_GITHUB_SECRET",
+    "AUTH_GOOGLE_SECRET",
+    "VERCEL_APP_CLIENT_SECRET",
+    "MCP_ENCRYPTION_KEY",
+  ] as const;
+
+  for (const key of optionalSecrets) {
+    const value = env[key];
+    if (typeof value === "string" && value.trim().length > 0 && looksLikePlaceholder(value)) {
+      errors.push({
+        feature: key,
+        missing: [`${key} contains a placeholder-like value in production`],
+      });
+    }
+  }
+
+  return errors;
+}
+
 function validateGatewayKey(env: NodeJS.ProcessEnv): ValidationError | null {
   // Prevent TS from narrowing to the current literal config value.
   const gateway = (() => config.ai.gateway as GatewayType)();
@@ -172,6 +236,7 @@ function checkEnv(): void {
     ...validateFeatures(env),
     ...validateAiTools(env),
     ...validateAuthentication(env),
+    ...validateProductionSecrets(env),
   ];
 
   if (errors.length > 0) {

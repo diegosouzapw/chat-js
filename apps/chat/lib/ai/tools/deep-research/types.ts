@@ -1,5 +1,5 @@
 import type { ModelMessage } from "ai";
-import { z } from "zod";
+import * as z from "zod";
 import type { CostAccumulator } from "@/lib/credits/cost-accumulator";
 import type { StreamWriter } from "../../types";
 import type { DocumentToolResult } from "../documents/types";

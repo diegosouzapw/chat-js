@@ -1,6 +1,6 @@
 import { TRPCError } from "@trpc/server";
 import { generateText } from "ai";
-import { z } from "zod";
+import * as z from "zod";
 import { getLanguageModel } from "@/lib/ai/providers";
 import type { ChatMessage } from "@/lib/ai/types";
 import {

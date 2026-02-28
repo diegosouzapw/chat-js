@@ -1,4 +1,4 @@
-import { z } from "zod";
+import * as z from "zod";
 
 // Provider metadata schema - using unknown since we don't have a specific schema
 const providerMetadataSchema = z.unknown().optional();

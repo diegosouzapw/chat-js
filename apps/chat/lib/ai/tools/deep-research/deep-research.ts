@@ -1,6 +1,6 @@
 import { type ModelMessage, tool } from "ai";
 import { Langfuse } from "langfuse";
-import { z } from "zod";
+import * as z from "zod";
 
 import type { ToolSession } from "@/lib/ai/tools/types";
 import type { CostAccumulator } from "@/lib/credits/cost-accumulator";

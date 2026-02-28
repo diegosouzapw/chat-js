@@ -1,5 +1,5 @@
 import { hasToolCall, stepCountIs, ToolLoopAgent, tool } from "ai";
-import { z } from "zod";
+import * as z from "zod";
 import type { AppModelId, ModelId } from "@/lib/ai/app-models";
 import { getLanguageModel } from "@/lib/ai/providers";
 import { leadResearcherPrompt } from "./prompts";

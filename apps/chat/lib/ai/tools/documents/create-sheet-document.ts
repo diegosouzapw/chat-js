@@ -1,5 +1,5 @@
 import { tool } from "ai";
-import { z } from "zod";
+import * as z from "zod";
 import { saveDocument } from "@/lib/db/queries";
 import { generateUUID } from "@/lib/utils";
 import { sheetGuidelines } from "./sheet-guidelines";

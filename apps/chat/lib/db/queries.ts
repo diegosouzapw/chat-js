@@ -18,7 +18,10 @@ import type {
   ToolOutput,
 } from "@/lib/ai/types";
 import { createModuleLogger } from "@/lib/logger";
-import { chatMessageToDbMessage } from "@/lib/message-conversion";
+import {
+  chatMessageToDbMessage,
+  extractRunIdFromAnnotations,
+} from "@/lib/message-conversion";
 
 const logger = createModuleLogger("db:queries");
 
@@ -494,6 +497,7 @@ export async function getAllMessagesByChatId({
           parentMessageId: msg.parentMessageId,
           selectedModel: (msg.selectedModel ||
             "") as ChatMessage["metadata"]["selectedModel"],
+          runId: extractRunIdFromAnnotations(msg.annotations),
           selectedTool: (msg.selectedTool ||
             undefined) as ChatMessage["metadata"]["selectedTool"],
           usage: msg.lastContext as ChatMessage["metadata"]["usage"],
@@ -799,6 +803,7 @@ export async function getChatMessageWithPartsById({
           parentMessageId: dbMessage.parentMessageId,
           selectedModel: (dbMessage.selectedModel ||
             "") as ChatMessage["metadata"]["selectedModel"],
+          runId: extractRunIdFromAnnotations(dbMessage.annotations),
           selectedTool: (dbMessage.selectedTool ||
             undefined) as ChatMessage["metadata"]["selectedTool"],
           usage: dbMessage.lastContext as ChatMessage["metadata"]["usage"],

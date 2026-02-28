@@ -33,6 +33,7 @@ export interface OmniChatRunRequest {
   query: string;
   mode?: string;
   compute_level?: number;
+  output_language?: string;
   use_search?: boolean;
   use_rag?: boolean;
   models?: string[];
@@ -336,8 +337,22 @@ export async function syncOmniRouteModels(): Promise<{ synced: number }> {
 
 export async function testModelConfig(
   data: { model_id: string; prompt?: string }
-): Promise<{ response: string; latency_ms: number }> {
-  return fetchApi<{ response: string; latency_ms: number }>("/model-configs/test", {
+): Promise<{
+  status: "ok" | "error";
+  model_id: string;
+  model_reported?: string;
+  response: string;
+  elapsed_s: number;
+  tokens?: { prompt: number; completion: number };
+}> {
+  return fetchApi<{
+    status: "ok" | "error";
+    model_id: string;
+    model_reported?: string;
+    response: string;
+    elapsed_s: number;
+    tokens?: { prompt: number; completion: number };
+  }>("/model-configs/test", {
     method: "POST",
     body: JSON.stringify(data),
   });

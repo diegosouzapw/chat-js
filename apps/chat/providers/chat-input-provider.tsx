@@ -17,18 +17,132 @@ import type { Attachment, UiToolName } from "@/lib/ai/types";
 import { useChatModels } from "./chat-models-provider";
 import { useDefaultModel, useModelChange } from "./default-model-provider";
 
+const GENERAL_SETTINGS_STORAGE_KEY = "omnichatagent_settings";
+const CHAT_MODE_STORAGE_KEY = "omnichatagent_chat_mode";
+const CHAT_OUTPUT_LANGUAGE_STORAGE_KEY = "omnichatagent_chat_output_language";
+
+type ComputeLevel = 3 | 5 | 7;
+
+function getGeneralSettingValue(key: string): unknown {
+  if (typeof window === "undefined") {
+    return undefined;
+  }
+
+  try {
+    const raw = localStorage.getItem(GENERAL_SETTINGS_STORAGE_KEY);
+    if (!raw) {
+      return undefined;
+    }
+    const parsed = JSON.parse(raw) as Array<{ key?: string; value?: unknown }>;
+    const found = parsed.find((entry) => entry?.key === key);
+    return found?.value;
+  } catch {
+    return undefined;
+  }
+}
+
+function getInitialMode(): string {
+  if (typeof window === "undefined") {
+    return "auto";
+  }
+
+  try {
+    return localStorage.getItem(CHAT_MODE_STORAGE_KEY) || "auto";
+  } catch {
+    return "auto";
+  }
+}
+
+function getInitialComputeLevel(): ComputeLevel | null {
+  const raw = getGeneralSettingValue("compute_level");
+  if (raw === 3 || raw === 5 || raw === 7) {
+    return raw;
+  }
+  if (typeof raw === "string") {
+    const parsed = Number.parseInt(raw, 10);
+    if (parsed === 3 || parsed === 5 || parsed === 7) {
+      return parsed;
+    }
+  }
+  return null;
+}
+
+function getInitialOutputLanguage(): string {
+  if (typeof window !== "undefined") {
+    try {
+      const stored = localStorage.getItem(CHAT_OUTPUT_LANGUAGE_STORAGE_KEY);
+      if (stored && stored.trim().length > 0) {
+        return stored.trim().slice(0, 16);
+      }
+    } catch {
+      // Ignore storage errors and continue with general settings fallback.
+    }
+  }
+
+  const raw = getGeneralSettingValue("output_language");
+  if (typeof raw !== "string") {
+    return "pt-BR";
+  }
+  const trimmed = raw.trim();
+  return trimmed.length > 0 ? trimmed.slice(0, 16) : "pt-BR";
+}
+
+function normalizeOutputLanguage(value: string): string {
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed.slice(0, 16) : "pt-BR";
+}
+
+function persistOutputLanguageToGeneralSettings(value: string): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  try {
+    const raw = localStorage.getItem(GENERAL_SETTINGS_STORAGE_KEY);
+    const parsed = raw
+      ? (JSON.parse(raw) as Array<{ key?: string; value?: unknown }>)
+      : [];
+
+    const next = [...parsed];
+    const index = next.findIndex((entry) => entry?.key === "output_language");
+    if (index >= 0) {
+      next[index] = {
+        ...next[index],
+        key: "output_language",
+        value,
+      };
+    } else {
+      next.push({
+        key: "output_language",
+        value,
+      });
+    }
+
+    localStorage.setItem(GENERAL_SETTINGS_STORAGE_KEY, JSON.stringify(next));
+  } catch {
+    // Ignore storage errors.
+  }
+}
+
 interface ChatInputContextType {
   attachments: Attachment[];
   editorRef: React.RefObject<LexicalChatInputRef | null>;
   getInitialInput: () => string;
   getInputValue: () => string;
   handleInputChange: (value: string) => void;
+  handleModeChange: (mode: string) => void;
+  handleOutputLanguageChange: (language: string) => void;
   handleModelChange: (modelId: AppModelId) => Promise<void>;
   handleSubmit: (submitFn: () => void, isEditMode?: boolean) => void;
   isEmpty: boolean;
   isProjectContext: boolean;
+  selectedComputeLevel: ComputeLevel | null;
   selectedModelId: AppModelId;
+  selectedMode: string;
+  selectedOutputLanguage: string;
   selectedTool: UiToolName | null;
+  setSelectedComputeLevel: Dispatch<SetStateAction<ComputeLevel | null>>;
+  setSelectedOutputLanguage: Dispatch<SetStateAction<string>>;
   setAttachments: Dispatch<SetStateAction<Attachment[]>>;
   setSelectedTool: Dispatch<SetStateAction<UiToolName | null>>;
 }
@@ -104,6 +218,13 @@ export function ChatInputProvider({
   const [selectedTool, setSelectedTool] = useState<UiToolName | null>(
     initialTool
   );
+  const [selectedMode, setSelectedMode] = useState<string>(() =>
+    getInitialMode()
+  );
+  const [selectedComputeLevel, setSelectedComputeLevel] =
+    useState<ComputeLevel | null>(() => getInitialComputeLevel());
+  const [selectedOutputLanguage, setSelectedOutputLanguageState] =
+    useState<string>(() => getInitialOutputLanguage());
   const [attachments, setAttachments] =
     useState<Attachment[]>(initialAttachments);
 
@@ -144,6 +265,53 @@ export function ChatInputProvider({
       await changeModel(modelId);
     },
     [selectedTool, changeModel, getModelById]
+  );
+
+  const handleModeChange = useCallback((mode: string) => {
+    const normalizedMode = mode?.trim() || "auto";
+    setSelectedMode(normalizedMode);
+
+    try {
+      localStorage.setItem(CHAT_MODE_STORAGE_KEY, normalizedMode);
+    } catch {
+      // Silently ignore storage failures (private mode, disabled storage, etc.)
+    }
+  }, []);
+
+  const persistSelectedOutputLanguage = useCallback((value: string) => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    try {
+      localStorage.setItem(CHAT_OUTPUT_LANGUAGE_STORAGE_KEY, value);
+    } catch {
+      // Ignore storage errors.
+    }
+
+    persistOutputLanguageToGeneralSettings(value);
+  }, []);
+
+  const setSelectedOutputLanguage = useCallback<Dispatch<SetStateAction<string>>>(
+    (value) => {
+      setSelectedOutputLanguageState((previous) => {
+        const resolved =
+          typeof value === "function"
+            ? (value as (prevState: string) => string)(previous)
+            : value;
+        const normalized = normalizeOutputLanguage(resolved);
+        persistSelectedOutputLanguage(normalized);
+        return normalized;
+      });
+    },
+    [persistSelectedOutputLanguage]
+  );
+
+  const handleOutputLanguageChange = useCallback(
+    (language: string) => {
+      setSelectedOutputLanguage(language);
+    },
+    [setSelectedOutputLanguage]
   );
 
   const clearInput = useCallback(() => {
@@ -207,6 +375,13 @@ export function ChatInputProvider({
         attachments,
         setAttachments,
         selectedModelId,
+        selectedMode,
+        handleModeChange,
+        handleOutputLanguageChange,
+        selectedComputeLevel,
+        setSelectedComputeLevel,
+        selectedOutputLanguage,
+        setSelectedOutputLanguage,
         handleModelChange,
         getInputValue,
         handleInputChange,

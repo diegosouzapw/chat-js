@@ -1,5 +1,5 @@
 import { tool } from "ai";
-import { z } from "zod";
+import * as z from "zod";
 import type { CostAccumulator } from "@/lib/credits/cost-accumulator";
 import { createModuleLogger } from "../../logger";
 import type { StreamWriter } from "../types";
